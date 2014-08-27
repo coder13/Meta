@@ -19,6 +19,7 @@ estraverse_asd.traverse(ast, {
 		if (node.type == 'VariableDeclarator') {
 			if (node.init.type == 'Literal') {
 				variables[String(node.id.name)] = node.init.value;
+				console.log('Variable:'.blue, node.id.name + ': ', node.init.value);
 			}
 		}
 		if (node.type == 'CallExpression' && node.callee.name == 'require') {
