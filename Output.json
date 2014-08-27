@@ -1,0 +1,77 @@
+{
+	"type": "CallExpression",
+	"callee": {
+		"type": "Identifier",
+		"name": "require"
+	},
+	"arguments": [{
+		"type": "Literal",
+		"value": "colors",
+		"raw": "'colors'"
+	}]
+}
+
+{
+	"type": "CallExpression",
+	"callee": {
+		"type": "Identifier",
+		"name": "require"
+	},
+	"arguments": [{
+		"type": "Literal",
+		"value": "fs",
+		"raw": "'fs'"
+	}]
+}
+
+{
+	"type": "CallExpression",
+	"callee": {
+		"type": "Identifier",
+		"name": "require"
+	},
+	"arguments": [{
+		"type": "Literal",
+		"value": "esprima",
+		"raw": "'esprima'"
+	}]
+}
+
+{
+	"type": "CallExpression",
+	"callee": {
+		"type": "Identifier",
+		"name": "require"
+	},
+	"arguments": [{
+		"type": "Literal",
+		"value": "estraverse",
+		"raw": "'estraverse'"
+	}]
+}
+
+{
+	"type": "CallExpression",
+	"callee": {
+		"type": "Identifier",
+		"name": "require"
+	},
+	"arguments": [{
+		"type": "Literal",
+		"value": "whatever",
+		"raw": "'whatever'"
+	}]
+}
+
+{
+	"type": "CallExpression",
+	"callee": {
+		"type": "Identifier",
+		"name": "require"
+	},
+	"arguments": [{
+		"type": "Literal",
+		"value": "blah",
+		"raw": "'blah'"
+	}]
+}
