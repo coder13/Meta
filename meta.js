@@ -10,16 +10,23 @@ console.log(('processing ' + file + '\n').blue);
 input = fs.readFileSync(file);
 ast = esprima.parse(input);
 
+var variables = {};
+
 console.log('this file requires: '.green);
 estraverse_asd.traverse(ast, {
 
 	enter: function (node) {
-		if (node.type == 'VariableDeclaration') {
-			console.log(JSON.stringify(node).red);
+		if (node.type == 'VariableDeclarator') {
+			if (node.init.type == 'Literal') {
+				variables[String(node.id.name)] = node.init.value;
+			}
 		}
 		if (node.type == 'CallExpression' && node.callee.name == 'require') {
-			console.log('-', String(node.arguments[0].value).blue);
+			if (node.arguments[0].type == 'Literal') {
+				console.log('-', String(node.arguments[0].value).blue);
+			} else if (node.arguments[0].type == 'Identifier') {
+				console.log('-', String(variables[node.arguments[0].name]).blue);
+			}
 		}
 	}
 });
-
