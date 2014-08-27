@@ -14,6 +14,9 @@ console.log('this file requires: '.green);
 estraverse_asd.traverse(ast, {
 
 	enter: function (node) {
+		if (node.type == 'VariableDeclaration') {
+			console.log(JSON.stringify(node).red);
+		}
 		if (node.type == 'CallExpression' && node.callee.name == 'require') {
 			console.log('-', String(node.arguments[0].value).blue);
 		}
