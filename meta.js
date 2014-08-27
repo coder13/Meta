@@ -1,4 +1,6 @@
-var c = 'colors';
+var c = 'colors',
+	a = 2,
+	b = 3+2;
 
 var file = process.argv[2],
 	colors = require(c),
@@ -19,7 +21,7 @@ estraverse_asd.traverse(ast, {
 		if (node.type == 'VariableDeclarator') {
 			if (node.init.type == 'Literal') {
 				variables[String(node.id.name)] = node.init.value;
-				console.log('Variable:'.blue, node.id.name + ': ', node.init.value);
+				console.log('Variable:'.grey, node.id.name + ':', node.init.raw);
 			}
 		}
 		if (node.type == 'CallExpression' && node.callee.name == 'require') {
