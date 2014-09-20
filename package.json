@@ -2,14 +2,18 @@
   "name": "Meta",
   "version": "0.0.1",
   "description": "",
-  "main": "meta.js",
+  "main": "analyze.js",
   "dependencies": {
     "colors": "~0.6.2",
+    "enhanced-resolve": "~0.7.6",
     "esprima": "~1.2.2",
     "estraverse": "~1.5.1",
     "underscore": "~1.7.0"
   },
+  "devDependencies": {},
   "scripts": {
-    "test": "node meta.js meta.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "author": "Caleb",
+  "license": "BSD-2-Clause"
 }

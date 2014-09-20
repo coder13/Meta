@@ -1,35 +1,63 @@
-var c = 'colors',
-	a = 2,
-	b = 3+2;
-
 var file = process.argv[2],
-	colors = require(c),
+	colors = require('colors'),
 	fs = require('fs'),
 	esprima = require('esprima'),
-	estraverse_asd = require('estraverse');
+	estraverse = require('estraverse'),
+	curdir = String(process.cwd() + '/' + process.argv[2]).split('/').slice(0, -1).join('/');
 
-console.log(('processing ' + file + '\n').blue);
-input = fs.readFileSync(file);
-ast = esprima.parse(input);
+console.log(curdir.green);
 
-var variables = {};
+require('hapi');
 
-console.log('this file requires: '.green);
-estraverse_asd.traverse(ast, {
+// console.log(require.resolve('hapi'));
+var requires = {};
 
-	enter: function (node) {
-		if (node.type == 'VariableDeclarator') {
-			if (node.init.type == 'Literal') {
-				variables[String(node.id.name)] = node.init.value;
-				console.log('Variable:'.grey, node.id.name + ':', node.init.raw);
+function getRequires(file, scope) {
+					console.log(file.green)
+
+// console.log(('processing ' + file + '\n').blue);
+
+	scope = scope||'-';
+
+	var input = fs.readFileSync(file),
+		vars = {},
+		req = {};
+	var ast = esprima.parse(input);
+	estraverse.traverse(ast, {
+		enter: function (node) {
+			if (node.type == 'VariableDeclarator' && node.init) {
+				if (node.init.type == 'Literal') {
+					vars[String(node.id.name)] = node.init.value;
+				}
+			}
+			if (node.type == 'CallExpression' && node.callee.name == 'require') {
+				var p;
+				if (node.arguments[0].type == 'Literal') {
+					p = node.arguments[0].value;
+				} else if (node.arguments[0].type == 'Identifier') {
+					p = vars[node.arguments[0].name];
+				}
+
+				console.log(p);
+				if (p && require.resolve(p) != p) {
+					// console.log(require.resolve(p).red);
+					console.log(scope, p);
+					req[p] = getRequires(require.resolve(p), scope+'-');
+				}
 			}
 		}
-		if (node.type == 'CallExpression' && node.callee.name == 'require') {
-			if (node.arguments[0].type == 'Literal') {
-				console.log('-', String(node.arguments[0].value).blue);
-			} else if (node.arguments[0].type == 'Identifier') {
-				console.log('-', String(variables[node.arguments[0].name]).blue);
-			}
-		}
+	});
+
+	return req;
+
+}
+
+function resolve(pkg) {
+	var s = plg.split('.');
+	if (s[s.length-1] == 'js' ? true : (fs.exists(pkg) || fs.exists(pkg + ".js"))) {
+		
 	}
-});
+}
+
+requires = getRequires(file);
+console.log(requires);
