@@ -5,15 +5,15 @@ var file = process.argv[2],
 	estraverse = require('estraverse'),
 	curdir = String(process.cwd() + '/' + process.argv[2]).split('/').slice(0, -1).join('/');
 
+hapi = require('hapi');
+
 console.log(curdir.green);
 
-require('hapi');
-
-// console.log(require.resolve('hapi'));
 var requires = {};
 
 function getRequires(file, scope) {
-					console.log(file.green)
+	curdir = file.split('/').slice(0, -1).join('/');
+	console.log(curdir.green);
 
 // console.log(('processing ' + file + '\n').blue);
 
@@ -31,18 +31,33 @@ function getRequires(file, scope) {
 				}
 			}
 			if (node.type == 'CallExpression' && node.callee.name == 'require') {
-				var p;
+				var pkg;
 				if (node.arguments[0].type == 'Literal') {
-					p = node.arguments[0].value;
+					pkg = node.arguments[0].value;
 				} else if (node.arguments[0].type == 'Identifier') {
-					p = vars[node.arguments[0].name];
+					pkg = vars[node.arguments[0].name];
 				}
 
-				console.log(p);
-				if (p && require.resolve(p) != p) {
-					// console.log(require.resolve(p).red);
-					console.log(scope, p);
-					req[p] = getRequires(require.resolve(p), scope+'-');
+				console.log(String(pkg));
+				// Do we actually have a package we are looking at
+				if (pkg) {
+					// Try to load it. If node can't find it, we try a different approach
+					try {
+						if (require.resolve(pkg) != pkg){
+							// console.log(require.resolve(pkg).red);
+							console.log(scope, pkg);
+							req[pkg] = getRequires(resolve(pkg), scope+'-');
+						}
+					} catch (err) {
+						// Assume it's a folder
+						if (pkg[0] == "." && pkg[1] == "/") {
+							curdir += pkg.slice(1);
+							console.log(scope, 'index.js');
+							req['index.js'] = getRequires(resolve('index.js'), scope+'-');
+						} else {
+							console.log(String(pkg).red);
+						}
+					}
 				}
 			}
 		}
@@ -53,11 +68,14 @@ function getRequires(file, scope) {
 }
 
 function resolve(pkg) {
-	var s = plg.split('.');
-	if (s[s.length-1] == 'js' ? true : (fs.exists(pkg) || fs.exists(pkg + ".js"))) {
-		
+	var s = pkg.split('.');
+	if (pkg[0] == '.') {
+		if (s[s.length-1] == 'js' ? true : (fs.exists(pkg) || fs.exists(pkg + ".js"))) {
+		}
+			 console.log(pkg.orange);
 	}
+	return require.resolve(pkg, {basedir: curdir});
 }
 
 requires = getRequires(file);
-console.log(requires);
+console.log(JSON.stringify(requires));
