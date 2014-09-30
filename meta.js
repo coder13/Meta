@@ -13,9 +13,9 @@ require('hapi');
 var requires = {};
 
 function getRequires(file, scope) {
-					console.log(file.green)
+	// console.log(file.green);
 
-// console.log(('processing ' + file + '\n').blue);
+	// console.log(('processing ' + file + '\n').blue);
 
 	scope = scope||'-';
 
@@ -38,10 +38,10 @@ function getRequires(file, scope) {
 					p = vars[node.arguments[0].name];
 				}
 
-				console.log(p);
+				// console.log(p);
 				if (p && require.resolve(p) != p) {
 					// console.log(require.resolve(p).red);
-					console.log(scope, p);
+					console.log(String(scope).black + String(p).blue);
 					req[p] = getRequires(require.resolve(p), scope+'-');
 				}
 			}
@@ -54,8 +54,11 @@ function getRequires(file, scope) {
 
 function resolve(pkg) {
 	var s = plg.split('.');
+	// check if file exists as js file
 	if (s[s.length-1] == 'js' ? true : (fs.exists(pkg) || fs.exists(pkg + ".js"))) {
 		
+	} else {
+		 
 	}
 }
 
