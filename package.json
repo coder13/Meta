@@ -5,10 +5,11 @@
   "main": "analyze.js",
   "dependencies": {
     "colors": "~0.6.2",
-    "enhanced-resolve": "~0.7.6",
     "esprima": "~1.2.2",
     "estraverse": "~1.5.1",
-    "underscore": "~1.7.0"
+    "underscore": "~1.7.0", 
+    "hapi": "*", 
+    "resolve": "*"
   },
   "devDependencies": {},
   "scripts": {
