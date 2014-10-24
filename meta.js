@@ -24,7 +24,7 @@ function getRequires(file, scope) {
 		req = {};
 	
 	cd = JSON.parse(JSON.stringify(curdir));
-	
+
 	function _resolve(p) {
 		if (!resolve.isCore(p)) {
 			var fullPath = resolve.sync(p, {basedir: String(file).split('/').slice(0, -1).join('/')});
@@ -43,7 +43,7 @@ function getRequires(file, scope) {
 			}
 		}
 	}
-	
+
 	if (path.extname(file) == '.json') {
 		input = JSON.parse(input);
 		if (Array.isArray(input)) {
