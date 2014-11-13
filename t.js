@@ -1,8 +1,2 @@
-function test() {
-	if (x) {
-		console.log(x);
-	}
-	var x = 2;
-}
-
-test();
+a = require('./a.json');
+console.log(a.a);

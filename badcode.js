@@ -1,17 +1,28 @@
-var cp = require('child_process');
+var exec = require("child_process").exec,
+	http = require('http'),
+	url = require('url'),
+	fs = require('fs'),
+	querystring = require('querystring'),
+	a = 5,
+	b = "2",
+	c = abc('def', 5);
 
-var a = 2 + (userinput + 3);
-var b = "Test1";
-
-eval(userinput);
-
-setTimeout(((a / 2) + 2) * 3);
-
+exec(userinput);
 cp.exec(userinput);
 
-function Test (argument) {
-	var b = "Matt is incredibly good looking.";
-	console.log(b);
-	eval(userinput);
-}
+file = fs.open('BADFILE');
 
+setTimeout(userinput);
+
+setTimeout(a(b));
+
+http.get("badurl", function(res) {
+
+	a = url.parse(res);
+
+	b = "something";
+});
+
+
+//message.url
+//http.incomingmessage
