@@ -8,10 +8,8 @@ var file = process.argv[2],
 var input = fs.readFileSync(file);
 var ast = esprima.parse(input);
 
-var syncs = require('./danger.json').syncs;
-var vars = [], sources = ['userinput'], modules = [];
-
-// console.log(ast);
+var sinks = require('./danger.json').sinks,
+	vars = [], sources = ['userinput'], modules = [];
 
 estraverse.traverse(ast, {
 	enter: function (node, parent) {
@@ -31,15 +29,8 @@ estraverse.traverse(ast, {
 	}
 });
 
-var out = fs.createWriteStream('output.json');
 
-out.write(JSON.stringify(ast));
-out.end();
-
-// console.log(vars);
-
-function isBad(name) {
-
+function isVarableASource(name) {
 	return sources.indexOf(name) > -1;
 }
 
@@ -52,41 +43,43 @@ function climb(ast) {
 }
 
 function track(variable) {
+
+	var varName = variable.id.name;
 	switch (variable.init.type) {
 		case 'Literal':
 			// If variable.init.value is bad, mark variable as bad
-			vars[String(variable.id.name)] = variable.init.value;
+			vars[String(varName)] = variable.init.value;
 			break;
 		case 'Identifier':
 			// if variable is being set to a bad variable, mark it too as bad
-			if (isBad(variable.init.name)) {
-				sources.push(variable.id.name);
-				console.log('found bad variable: ' + variable.id.name);
+			if (isVarableASource(variable.init.name)) {
+				sources.push(varName);
+				console.log('[BAD]'.red, varName);
 			}
 			break;
 		case 'BinaryExpression':
 			climb(variable.init).forEach(function (i) {
 				if (i.type == 'Identifier') {
-					if (isBad(i.name)) {
-						sources.push(variable.id.name);
-						console.log('found bad variable: ' + variable.id.name);
+					if (isVarableASource(i.name)) {
+						sources.push(varName);
+						console.log('[BAD]'.red, varName);
 					}
 				}
 			});
 			break;
 		case 'CallExpression':
-			vars[String(variable.id.name)] = resolveCallExpression(variable.init);
+			vars[String(varName)] = resolveCallExpression(variable.init);
 			break;
 		case 'MemberExpression':
-			vars[String(variable.id.name)] =
-	resolveCallExpression(variable.init.object).raw + '.' + variable.init.property.name;
+			vars[String(varName)] = resolveCallExpression(variable.init.object).raw + '.' + variable.init.property.name;
 			break;
 	}
 
-	console.log('[VAR]', variable.id.name, vars[String(variable.id.name)]);
+	console.log('[VAR]'.blue, varName, vars[String(varName)]);
 	
 }
 
+// designed to recursively resolve epressions
 function resolveExpression(node) {
 	switch (node.type) {
 		case 'AssignmentExpression':
@@ -95,46 +88,50 @@ function resolveExpression(node) {
 			else if (node.right.type == 'CallExpression') {
 				vars[node.left.name] = resolveExpression(node.right);
 			}
+			console.log('[VAR]'.blue, node.left.name, vars[String(node.left.name)]);
+	
 			break;
 		case 'CallExpression':
 			ce = resolveCallExpression(node);
-			if (ce.raw.indexOf('require(\'fs\')') > -1) {
-				console.log("Something");
-			}
-			if (vars.indexOf(ce.name) != -1) {
-				if (syncs.indexOf(vars[ce.name]) >= 0) { // BAD.
-					console.log('[BAD]', ce.raw);
+			var ceName = vars[ce.name] || ce.name;
+			// console.log(ceName);
+			
+			// determine if expression is a sink. Then report.
+			sinks.forEach(function (i) {
+				if (ceName.match(i)) {
+					console.log('[SINK]'.red, ce.raw);
+					return;
 				}
-			} else {
-				if (syncs.indexOf(ce.name) >= 0) { // BAD. 
-					console.log('[BAD]', ce.raw);
-				}
-			}
+			});
 			return ce;
 		case 'BinaryExpression':
 			break;
 	}
 }
 
+// turns a call expression into a simple json object
 function resolveCallExpression(ce) {
 	if (!ce) // ce can sometimes be undefined. Find out why later.
 		return;
 	var callExpression = {};
 	if (ce && ce.type == 'CallExpression') {
 		
-		cObj = ce.callee.object;
+		// console.log(ce.callee.name);
 		if (ce.callee.type == 'MemberExpression') {
-			console.log(cObj);
-			callExpression.name = (vars.indexOf(cObj.name) > -1 ? (vars[cObj.name].raw || vars[cObj.name].name)  + '.' : cObj.name)
-					+ ce.callee.property.name;
-		} else
+			cName = ce.callee.object.name;
+			
+			callExpression.name = (vars[cName] ? vars[cName].raw : cName) +
+			'.' + ce.callee.property.name;
+		} else {
 			callExpression.name = ce.callee.name;
-		
+		}
 	}
+
 	if (ce.arguments)
 		callExpression.arguments = simplifyArguments(ce.arguments);
+
 	callExpression.raw = callExpression.name +
-		"(" + (callExpression.arguments ? callExpression.arguments.join() : "") + ")";
+		"(" + (callExpression.arguments ? callExpression.arguments.join(",") : "") + ")";
 
 	return callExpression;
 }
