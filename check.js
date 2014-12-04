@@ -6,7 +6,7 @@ var file = process.argv[2],
 	estraverse = require('estraverse');
 
 var input = fs.readFileSync(file);
-var astInput = esprima.parse(input);
+var astInput = esprima.parse(input, {loc: true});
 
 var sinks = require('./danger.json').sinks,
 	sources = ['userinput'], modules = [];
@@ -53,7 +53,7 @@ function createNewScope(ast, parentVars) {
 
 	// handles creation of variables. 
 	function track(variable) {
-		// console.log(variable);
+		// console.log(variable.loc);
 		var varName = variable.id.name;
 		switch (variable.init.type) {
 			case 'Literal':
@@ -94,7 +94,7 @@ function createNewScope(ast, parentVars) {
 				break;
 		}
 
-		console.log('[VAR]'.blue, varName, vars[varName]);
+		console.log('[VAR]'.blue, String(variable.loc.start.line).black,  varName, vars[varName]);
 		
 	}
 
@@ -111,7 +111,7 @@ function createNewScope(ast, parentVars) {
 				else if (node.right.type == 'CallExpression') {
 					vars[node.left.name] = resolveExpression(node.right);
 				}
-				console.log('[ASSIGN]'.blue, node.left.name, vars[String(node.left.name)]);
+				console.log('[ASSIGN]'.blue, String(node.loc.start.line).black, node.left.name, vars[String(node.left.name)]);
 		
 				break;
 			case 'CallExpression':

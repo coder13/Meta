@@ -7,7 +7,6 @@ var mainFile = process.argv[2],
 	resolve = require('resolve');
 	curdir = String(process.cwd() + '/' + process.argv[2]).split('/').slice(0, -1).join('/');
 
-console.log(curdir.white);
 hapi = require('hapi');
 
 console.log(curdir.green);
@@ -16,6 +15,7 @@ var lookuptable = {},
 	requires = {};
 
 function getRequires(file, scope) {
+	if (!file) return false;
 	curdir = file.split('/').slice(0, -1).join('/');
 	console.log(curdir.green);
 
@@ -80,7 +80,7 @@ function getRequires(file, scope) {
 							// console.log(require.resolve(pkg).red);
 							console.log(scope, pkg);
 							req[pkg] = getRequires(resolve(pkg), scope+'-');
-						}
+		 				}
 					} catch (err) {
 						// Assume it's a folder
 						if (pkg[0] == "." && pkg[1] == "/") {
