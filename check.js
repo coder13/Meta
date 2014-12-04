@@ -23,8 +23,6 @@ function createNewScope(ast, parentVars) {
 				console.log('[SINK]'.red, func.raw);
 				return;
 			}
-			//  else if (ceName.indexOf("fs") != -1) {
-			// }
 		});
 	}
 
@@ -41,7 +39,7 @@ function createNewScope(ast, parentVars) {
 					case 'CallExpression':
 						ce = resolveCallExpression(node);
 						var ceName = f(ce.name);
-						console.log('33', String(ce.raw).green);
+						// console.log('33', String(ce.raw).green);
 						
 						
 					break;
@@ -148,7 +146,7 @@ function createNewScope(ast, parentVars) {
 				cName = ce.callee.object.name;
 				
 				callExpression.name = resolveMemberExpression(ce.callee);
-				console.log(callExpression.name);
+				// console.log(callExpression.name);
 			} else {
 				callExpression.name = ce.callee.name;
 			}
