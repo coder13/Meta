@@ -11,11 +11,22 @@ var astInput = esprima.parse(input);
 var sinks = require('./danger.json').sinks,
 	sources = ['userinput'], modules = [];
 
-createNewScope(astInput);
+createNewScope(astInput, []);
 
-function createNewScope(ast) {
+function createNewScope(ast, parentVars) {
 	console.log('creating new scope'.black);
-	var vars = [];
+	var vars = parentVars;
+
+	function isSink(func) {
+		sinks.forEach(function (i) {
+			if (func.name.match(i)) {
+				console.log('[SINK]'.red, func.raw);
+				return;
+			}
+			//  else if (ceName.indexOf("fs") != -1) {
+			// }
+		});
+	}
 
 	estraverse.traverse(ast, {
 		enter: function (node, parent) {
@@ -23,35 +34,28 @@ function createNewScope(ast) {
 			switch (node.type) {
 				case 'VariableDeclarator':
 					if (node.init) {
-						track(this, node);
+						track(node);
 					}
 					break;
 				case 'CallExpression':
 					case 'CallExpression':
-						ce = resolveCallExpression(this, node);
-						var ceName = f(this, ce.name);
-						console.log(String(ce.raw).green);
+						ce = resolveCallExpression(node);
+						var ceName = f(ce.name);
+						console.log('33', String(ce.raw).green);
 						
-						// determine if expression is a sink. Then report.
-						sinks.forEach(function (i) {
-							if (ceName.match(i)) {
-								console.log('[SINK]'.red, ce.raw);
-								return;
-							} else if (ceName.indexOf("fs") != -1) {
-							}
-						});
+						
 					break;
 				case 'ExpressionStatement':
-					resolveExpression(this, node.expression);
+					resolveExpression(node.expression);
 					break;
 			}
 
 		}
 	});
 
-
+	// handles creation of variables. 
 	function track(variable) {
-
+		// console.log(variable);
 		var varName = variable.id.name;
 		switch (variable.init.type) {
 			case 'Literal':
@@ -64,6 +68,7 @@ function createNewScope(ast) {
 					sources.push(varName);
 					console.log('[BAD]'.red, varName);
 				}
+				vars[varName] = f(variable.init.name);
 				break;
 			case 'BinaryExpression':
 				climb(variable.init).forEach(function (i) {
@@ -79,7 +84,15 @@ function createNewScope(ast) {
 				vars[varName] = resolveCallExpression(variable.init);
 				break;
 			case 'MemberExpression':
-				vars[varName] = resolveCallExpression(variable.init.object).raw + '.' + variable.init.property.name;
+				// console.log(resolveMemberExpression(variable.init));
+				switch (variable.init.type){
+					case 'MemberExpression': 
+						vars[varName] = resolveMemberExpression(variable.init);
+						break;
+				}
+				break;
+			case 'ObjectExpression': // json objects
+				// console.log(String(variable.init.type).red, variable.init.properties);
 				break;
 		}
 
@@ -88,7 +101,7 @@ function createNewScope(ast) {
 	}
 
 	function f(name) { // rename later; returns a value for a variable if one exists
-		return vars[ce.name] ? (f(vars[ce.name]) || name) : name;
+		return vars[name] ? (f(vars[name]) || name) : name;
 	}
 
 	// designed to recursively resolve epressions
@@ -106,16 +119,14 @@ function createNewScope(ast) {
 			case 'CallExpression':
 				// ce = resolveCallExpression(node);
 				// var ceName = f(ce.name);
-				// console.log(String(ce.name).green);
+				// // console.log(String(ce.name).green);
 				
 				// // determine if expression is a sink. Then report.
 				// sinks.forEach(function (i) {
 				// 	if (ceName.match(i)) {
-				// 		console.log(ceName, i);
 				// 		console.log('[SINK]'.red, ce.raw);
 				// 		return;
 				// 	} else if (ceName.indexOf("fs") != -1) {
-				// 		console.log("--".red);
 				// 	}
 				// });
 				// return ce;
@@ -136,8 +147,8 @@ function createNewScope(ast) {
 			if (ce.callee.type == 'MemberExpression') {
 				cName = ce.callee.object.name;
 				
-				callExpression.name = (vars[cName] ? vars[cName].raw : cName) +
-				'.' + ce.callee.property.name;
+				callExpression.name = resolveMemberExpression(ce.callee);
+				console.log(callExpression.name);
 			} else {
 				callExpression.name = ce.callee.name;
 			}
@@ -150,6 +161,14 @@ function createNewScope(ast) {
 			"(" + (callExpression.arguments ? callExpression.arguments.join(",") : "") + ")";
 
 		return callExpression;
+	}
+
+	function resolveMemberExpression(expr) {
+		if (expr.object.type == 'MemberExpression') {
+			return resolveMemberExpression(expr.object) + '.' + expr.property.name;
+		} else {
+			return expr.object.name + '.' + expr.property.name;
+		}
 	}
 
 	function simplifyArguments(args) {
@@ -166,7 +185,7 @@ function createNewScope(ast) {
 					newArgs.push(resolveCallExpression(i));
 					break;
 				case 'FunctionExpression':
-					createNewScope(i);
+					createNewScope(i, vars);
 					break;
 				// default:
 				//	console.log(i.type, i);

@@ -1,80 +1,87 @@
-var a = 5;
+var b = '3';
+var a = b;
+var a = b.c;
+var a = b.c.d;
+var a = b.c.d.e;
+var a = b.c.d.e();
 
-math.lib.trig.calc.sin(0);
+// var a = 5;
 
-if (a) {
+// math.lib.trig.calc.sin(0);
 
-	while (c) {
-		foo();
+// if (a) {
 
-		if (d) {
+// 	while (c) {
+// 		foo();
 
-			while (x === 0) {
-				bar();
-				foo();
+// 		if (d) {
 
-			}
+// 			while (x === 0) {
+// 				bar();
+// 				foo();
 
-		} else if (e && d) {
+// 			}
 
-			if (x) {
+// 		} else if (e && d) {
 
-			} else {
+// 			if (x) {
 
-			}
+// 			} else {
 
-		} else {
+// 			}
 
-		}
+// 		} else {
 
-	}
+// 		}
 
-	bar();
+// 	}
 
-} else if (b) {
+// 	bar();
+
+// } else if (b) {
 	
-	if (d) {
-		bar();
-	}
+// 	if (d) {
+// 		bar();
+// 	}
 
-	if (x) {
+// 	if (x) {
 
-		try {
+// 		try {
 
-			bar();
+// 			bar();
 
-		} catch (err){
+// 		} catch (err){
 
-			console.log(err);
+// 			console.log(err);
 
-		}
+// 		}
 
-	} else {
+// 	} else {
 
-	}
+// 	}
 
-} else if (b == 3) {
+// } else if (b == 3) {
 
-	if (a) {
+// 	if (a) {
 
-		yadayada();
+// 		yadayada();
 
-	}
+// 	}
 	
-} else {
+// } else {
 
-	exit();
+// 	exit();
 
-	for (var i = 0; i < 120; i++) {
+// 	for (var i = 0; i < 120; i++) {
 
-		if (foo()) {
+// 		if (foo()) {
 			
-			bar();
+// 			bar();
 
-		}
+// 		}
 
-	}
+// 	}
 
-}
+// }
 
-bar();
+// bar();
