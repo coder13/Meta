@@ -1,0 +1,3 @@
+{"sinks": 
+	["eval", "setTimeout", "clearTimeout", "setInterval", "clearInterval",
+	"require('child_process').exec", "require('http').get", "^require\\('fs'\\)\\.[a-zA-Z]+"]}
