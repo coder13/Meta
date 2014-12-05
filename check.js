@@ -18,7 +18,7 @@ var sinks = require('./danger.json').sinks,
 createNewScope(astInput, []);
 
 function createNewScope(ast, parentVars) {
-	console.log('creating new scope'.black);
+	console.log('creating new scope'.red);
 	var vars = parentVars;
 
 	function isSink(name, cb) {
@@ -210,5 +210,5 @@ function climb(ast) {
 }
 
 function pos(node) {
-	return String(node.loc.start.line).black;
+	return String(node.loc.start.line).red;
 }
