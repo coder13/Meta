@@ -8,6 +8,10 @@ var file = process.argv[2],
 var input = fs.readFileSync(file);
 var astInput = esprima.parse(input, {loc: true});
 
+// var astInput = esprima.parse(input, {loc: true, tokens: true});
+
+fs.writeFileSync("checkASTOutput.json",JSON.stringify(astInput));
+
 var sinks = require('./danger.json').sinks,
 	sources = ['userinput'], modules = [];
 
