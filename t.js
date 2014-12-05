@@ -1,2 +1,3 @@
-a = require('./a.json');
-console.log(a.a);
+var a = {b: '1'};
+a.b = 2;
+eval(a.b);

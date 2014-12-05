@@ -35,11 +35,13 @@ function createNewScope(ast, parentVars) {
 					break;
 				case 'CallExpression':
 					ce = resolveCallExpression(node);
-					var ceName = f(ce.name);
-					console.log('[FUNC]'.blue, pos(node), ce.name, f(ce.name));
-					isSink(ceName, function() {
-						console.log('[SINK]'.red, pos(node), ceName);
-					});
+					if (ce.name) {
+						var ceName = f(ce.name);
+						console.log('[FUNC]'.blue, pos(node), ce.name, f(ce.name));
+						isSink(ceName, function() {
+							console.log('[SINK]'.red, pos(node), ceName);
+						});
+					}
 						
 					break;
 				case 'ExpressionStatement':
@@ -52,8 +54,9 @@ function createNewScope(ast, parentVars) {
 
 	// handles creation of variables. 
 	function track(variable) {
-		// console.log(variable.loc);
+		// console.log(variable);
 		var varName = variable.id.name;
+
 		switch (variable.init.type) {
 			case 'Literal':
 				// If variable.init.value is bad, mark variable as bad
@@ -89,7 +92,7 @@ function createNewScope(ast, parentVars) {
 				}
 				break;
 			case 'ObjectExpression': // json objects
-				// console.log(String(variable.init.type).red, variable.init.properties);
+				vars[varName] = resolveObjectExpression(variable.init);
 				break;
 		}
 
@@ -106,12 +109,17 @@ function createNewScope(ast, parentVars) {
 	function resolveExpression(node) {
 		switch (node.type) {
 			case 'AssignmentExpression':
-				if (node.right.type == 'Literal')
-					vars[node.left.name] = node.right.name;
-				else if (node.right.type == 'CallExpression') {
-					vars[node.left.name] = resolveExpression(node.right);
+				var name = node.left.name;
+				if (node.left.type == 'MemberExpression') {
+					name = resolveMemberExpression(node.left);
 				}
-				console.log('[ASSIGN]'.blue, pos(node), node.left.name, vars[String(node.left.name)]);
+				
+				if (node.right.type == 'Literal')
+					vars[name] = node.right.name;
+				else if (node.right.type == 'CallExpression') {
+					vars[name] = resolveExpression(node.right);
+				}
+				console.log('[ASSIGN]'.blue, pos(node), name, vars[String(node.left.name)]);
 		
 				break;
 			case 'BinaryExpression':
@@ -121,25 +129,25 @@ function createNewScope(ast, parentVars) {
 
 
 	// turns a call expression into a simple json object
-	function resolveCallExpression(ce) {
-		if (!ce) // ce can sometimes be undefined. Find out why later.
+	function resolveCallExpression(node) {
+		if (!node) // node can sometimes be undefined. Find out why later.
 			return;
 		var callExpression = {};
-		if (ce && ce.type == 'CallExpression') {
+		if (node && node.type == 'CallExpression') {
 			
-			// console.log(ce.callee.name);
-			if (ce.callee.type == 'MemberExpression') {
-				cName = ce.callee.object.name;
+			// console.log(node.callee.name);
+			if (node.callee.type == 'MemberExpression') {
+				cName = node.callee.object.name;
 				
-				callExpression.name = resolveMemberExpression(ce.callee);
+				callExpression.name = resolveMemberExpression(node.callee);
 				// console.log(callExpression.name);
 			} else {
-				callExpression.name = ce.callee.name;
+				callExpression.name = node.callee.name;
 			}
 		}
 
-		if (ce.arguments.length > 0)
-			callExpression.arguments = simplifyArguments(ce.arguments);
+		if (node.arguments.length > 0)
+			callExpression.arguments = simplifyArguments(node.arguments);
 
 		callExpression.raw = callExpression.name +
 			"(" + (callExpression.arguments ? callExpression.arguments.join(",") : "") + ")";
@@ -147,14 +155,19 @@ function createNewScope(ast, parentVars) {
 		return callExpression;
 	}
 
-	function resolveMemberExpression(expr) {
-		if (expr.object.type == 'MemberExpression') {
-			return resolveMemberExpression(expr.object) + '.' + expr.property.name;
+	function resolveMemberExpression(node) {
+		if (node.object.type == 'MemberExpression') {
+			return resolveMemberExpression(node.object) + '.' + node.property.name;
 		} else {
-			return expr.object.name + '.' + expr.property.name;
+			return node.object.name + '.' + node.property.name;
 		}
 	}
 
+	function resolveObjectExpression(node) {
+		console.log('[JSON]', node.properties);
+
+	}
+ 
 	function simplifyArguments(args) {
 		var newArgs = [];
 		args.forEach(function (i) {
