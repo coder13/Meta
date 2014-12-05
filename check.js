@@ -17,18 +17,16 @@ function createNewScope(ast, parentVars) {
 	console.log('creating new scope'.black);
 	var vars = parentVars;
 
-	function isSink(func) {
+	function isSink(name, cb) {
 		sinks.forEach(function (i) {
-			if (func.name.match(i)) {
-				console.log('[SINK]'.red, func.raw);
-				return;
+			if (name.match(i)) {
+				cb();
 			}
 		});
 	}
 
 	estraverse.traverse(ast, {
 		enter: function (node, parent) {
-			// console.log(node);
 			switch (node.type) {
 				case 'VariableDeclarator':
 					if (node.init) {
@@ -36,11 +34,12 @@ function createNewScope(ast, parentVars) {
 					}
 					break;
 				case 'CallExpression':
-					case 'CallExpression':
-						ce = resolveCallExpression(node);
-						var ceName = f(ce.name);
-						// console.log('33', String(ce.raw).green);
-						
+					ce = resolveCallExpression(node);
+					var ceName = f(ce.name);
+					console.log('[FUNC]'.blue, pos(node), ce.name, f(ce.name));
+					isSink(ceName, function() {
+						console.log('[SINK]'.red, pos(node), ceName);
+					});
 						
 					break;
 				case 'ExpressionStatement':
@@ -84,7 +83,7 @@ function createNewScope(ast, parentVars) {
 			case 'MemberExpression':
 				// console.log(resolveMemberExpression(variable.init));
 				switch (variable.init.type){
-					case 'MemberExpression': 
+					case 'MemberExpression':
 						vars[varName] = resolveMemberExpression(variable.init);
 						break;
 				}
@@ -94,12 +93,13 @@ function createNewScope(ast, parentVars) {
 				break;
 		}
 
-		console.log('[VAR]'.blue, String(variable.loc.start.line).black,  varName, vars[varName]);
+		console.log('[VAR]'.blue, pos(variable),  varName, vars[varName]);
 		
 	}
 
 	function f(name) { // rename later; returns a value for a variable if one exists
-		return vars[name] ? (f(vars[name]) || name) : name;
+		var s = name.indexOf('.') == -1 ? name : name.split('.').slice(0,-1).join('.');
+		return vars[s] ? name.replace(s, vars[s].raw) : name;
 	}
 
 	// designed to recursively resolve epressions
@@ -111,23 +111,9 @@ function createNewScope(ast, parentVars) {
 				else if (node.right.type == 'CallExpression') {
 					vars[node.left.name] = resolveExpression(node.right);
 				}
-				console.log('[ASSIGN]'.blue, String(node.loc.start.line).black, node.left.name, vars[String(node.left.name)]);
+				console.log('[ASSIGN]'.blue, pos(node), node.left.name, vars[String(node.left.name)]);
 		
 				break;
-			case 'CallExpression':
-				// ce = resolveCallExpression(node);
-				// var ceName = f(ce.name);
-				// // console.log(String(ce.name).green);
-				
-				// // determine if expression is a sink. Then report.
-				// sinks.forEach(function (i) {
-				// 	if (ceName.match(i)) {
-				// 		console.log('[SINK]'.red, ce.raw);
-				// 		return;
-				// 	} else if (ceName.indexOf("fs") != -1) {
-				// 	}
-				// });
-				// return ce;
 			case 'BinaryExpression':
 				break;
 		}
@@ -152,7 +138,7 @@ function createNewScope(ast, parentVars) {
 			}
 		}
 
-		if (ce.arguments)
+		if (ce.arguments.length > 0)
 			callExpression.arguments = simplifyArguments(ce.arguments);
 
 		callExpression.raw = callExpression.name +
@@ -183,7 +169,7 @@ function createNewScope(ast, parentVars) {
 					newArgs.push(resolveCallExpression(i));
 					break;
 				case 'FunctionExpression':
-					createNewScope(i, vars);
+					// createNewScope(i, vars);
 					break;
 				// default:
 				//	console.log(i.type, i);
@@ -204,4 +190,8 @@ function climb(ast) {
 	} else {
 		return [ast];
 	}
+}
+
+function pos(node) {
+	return String(node.loc.start.line).black;
 }
