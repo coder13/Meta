@@ -8,8 +8,6 @@ var file = process.argv[2],
 var input = fs.readFileSync(file);
 var astInput = esprima.parse(input, {loc: true});
 
-// var astInput = esprima.parse(input, {loc: true, tokens: true});
-
 fs.writeFileSync("checkASTOutput.json",JSON.stringify(astInput));
 
 var sinks = require('./danger.json').sinks,
@@ -123,7 +121,7 @@ function createNewScope(ast, parentVars) {
 				else if (node.right.type == 'CallExpression') {
 					vars[name] = resolveExpression(node.right);
 				}
-				console.log('[ASSIGN]'.blue, pos(node), name, vars[String(node.left.name)]);
+				console.log('[ASSIGN]'.blue, pos(node), name, vars[name]);
 		
 				break;
 			case 'BinaryExpression':
@@ -210,5 +208,5 @@ function climb(ast) {
 }
 
 function pos(node) {
-	return String(node.loc.start.line).black;
+	return String(node.loc.start.line).grey;
 }
