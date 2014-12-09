@@ -1,3 +1,8 @@
-var a = {b: '1'};
-a.b = 2;
-eval(a.b);
+var a = userinput;
+
+eval(userinput);
+
+function p(ui) {
+	print(ui);
+	eval(ui);
+}

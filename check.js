@@ -29,6 +29,9 @@ function createNewScope(ast, parentVars) {
 
 	estraverse.traverse(ast, {
 		enter: function (node, parent) {
+			if (parent && parent.type != 'Program') { // Check top level expressions only
+				this.skip();
+			}
 			switch (node.type) {
 				case 'VariableDeclarator':
 					if (node.init) {
@@ -47,7 +50,7 @@ function createNewScope(ast, parentVars) {
 						
 					break;
 				case 'ExpressionStatement':
-					resolveExpression(node.expression);
+					resolveExpression(node.expression, parent);
 					break;
 			}
 
@@ -57,48 +60,13 @@ function createNewScope(ast, parentVars) {
 	// handles creation of variables. 
 	function track(variable) {
 		// console.log(variable);
-		var varName = variable.id.name;
+		var name = variable.id.name;
 
-		switch (variable.init.type) {
-			case 'Literal':
-				// If variable.init.value is bad, mark variable as bad
-				vars[varName] = variable.init.value;
-				break;
-			case 'Identifier':
-				// if variable is being set to a bad variable, mark it too as bad
-				if (isVarableASource(variable.init.name)) {
-					sources.push(varName);
-					console.log('[BAD]'.red, varName);
-				}
-				vars[varName] = f(variable.init.name);
-				break;
-			case 'BinaryExpression':
-				climb(variable.init).forEach(function (i) {
-					if (i.type == 'Identifier') {
-						if (isVarableASource(i.name)) {
-							sources.push(varName);
-							console.log('[BAD]'.red, varName);
-						}
-					}
-				});
-				break;
-			case 'CallExpression':
-				vars[varName] = resolveCallExpression(variable.init);
-				break;
-			case 'MemberExpression':
-				// console.log(resolveMemberExpression(variable.init));
-				switch (variable.init.type){
-					case 'MemberExpression':
-						vars[varName] = resolveMemberExpression(variable.init);
-						break;
-				}
-				break;
-			case 'ObjectExpression': // json objects
-				vars[varName] = resolveObjectExpression(variable.init);
-				break;
-		}
+		var value = resolveRight(name, variable.init);
 
-		console.log('[VAR]'.blue, pos(variable),  varName, vars[varName]);
+		vars[name] = value;
+
+		console.log('[VAR]'.blue, pos(variable), name, value);
 		
 	}
 
@@ -107,20 +75,53 @@ function createNewScope(ast, parentVars) {
 		return vars[s] ? name.replace(s, vars[s].raw) : name;
 	}
 
+	function resolveRight(name, right) {
+		switch (right.type) {
+			case 'Literal':
+				// If right.value is bad, mark variable as bad
+				return right.value;
+				
+			case 'Identifier':
+				// if variable is being set to a bad variable, mark it too as bad
+				if (isVarableASource(right.name)) {
+					sources.push(name);
+					console.log('[BAD]'.red, name);
+				}
+				return f(right.name);
+				
+			case 'BinaryExpression':
+				climb(right).forEach(function (i) {
+					if (i.type == 'Identifier') {
+						if (isVarableASource(i.name)) {
+							sources.push(name);
+							console.log('[BAD]'.red, name);
+						}
+					}
+				});
+				break;
+			case 'CallExpression':
+				return resolveCallExpression(right);
+			case 'MemberExpression':
+				// console.log(resolveMemberExpression(right));
+				return resolveMemberExpression(right);
+			case 'ObjectExpression': // json objects
+				return resolveObjectExpression(right);
+				
+		}
+	}
+
 	// designed to recursively resolve epressions
-	function resolveExpression(node) {
+	function resolveExpression(node, parent) {
 		switch (node.type) {
 			case 'AssignmentExpression':
 				var name = node.left.name;
 				if (node.left.type == 'MemberExpression') {
 					name = resolveMemberExpression(node.left);
+					name = eval('vars.' + name);
 				}
 				
-				if (node.right.type == 'Literal')
-					vars[name] = node.right.name;
-				else if (node.right.type == 'CallExpression') {
-					vars[name] = resolveExpression(node.right);
-				}
+				vars[name] = resolveRight(name, node.right);
+
 				console.log('[ASSIGN]'.blue, pos(node), name, vars[name]);
 		
 				break;
@@ -166,8 +167,14 @@ function createNewScope(ast, parentVars) {
 	}
 
 	function resolveObjectExpression(node) {
-		console.log('[JSON]', node.properties);
+		console.log('[JSON]'.blue);
+		var obj = {};
+		node.properties.forEach(function(i) {
+			obj[i.key.name] = resolveRight(i.value);
+			console.log(i.key.name, obj[i.key]);
 
+		});
+		return obj;
 	}
  
 	function simplifyArguments(args) {
@@ -184,7 +191,7 @@ function createNewScope(ast, parentVars) {
 					newArgs.push(resolveCallExpression(i));
 					break;
 				case 'FunctionExpression':
-					// createNewScope(i, vars);
+					createNewScope(i, vars);
 					break;
 				// default:
 				//	console.log(i.type, i);
