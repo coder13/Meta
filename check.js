@@ -3,7 +3,8 @@ var file = process.argv[2],
 	fs = require('fs'),
 	path = require('path'),
 	esprima = require('esprima'),
-	estraverse = require('estraverse');
+	estraverse = require('estraverse'),
+	_ = require('underscore');
 
 var input = fs.readFileSync(file);
 var astInput = esprima.parse(input, {loc: true});
@@ -13,11 +14,13 @@ fs.writeFileSync("checkASTOutput.json",JSON.stringify(astInput));
 var sinks = require('./danger.json').sinks,
 	sources = ['userinput'], modules = [];
 
-createNewScope(astInput, []);
+createNewScope(astInput, {}, []);
 
-function createNewScope(ast, parentVars) {
+function createNewScope(ast, parentVars, params) {
 	console.log('creating new scope'.red);
 	var vars = parentVars;
+
+	console.log(parentVars);
 
 	function isSink(name, cb) {
 		sinks.forEach(function (i) {
@@ -29,7 +32,8 @@ function createNewScope(ast, parentVars) {
 
 	estraverse.traverse(ast, {
 		enter: function (node, parent) {
-			if (parent && parent.type != 'Program') { // Check top level expressions only
+			// console.log(node);
+			if (parent && (parent.type != 'Program' && parent.type != 'BlockStatement')) { // Check top level expressions only
 				this.skip();
 			}
 			switch (node.type) {
@@ -42,16 +46,34 @@ function createNewScope(ast, parentVars) {
 					ce = resolveCallExpression(node);
 					if (ce.name) {
 						var ceName = f(ce.name);
-						console.log('[FUNC]'.blue, pos(node), ce.name, f(ce.name));
+						console.log('[CE]'.blue, pos(node), ce.name, ceName);
 						isSink(ceName, function() {
 							console.log('[SINK]'.red, pos(node), ceName);
 						});
+					
+						if (vars[ce.name]) {
+							var func = vars[ce.name];
+							var args = _.object(func.params, ce.arguments);
+							createNewScope(func.body, concat(vars, args));
+
+						}
+
 					}
 						
 					break;
 				case 'ExpressionStatement':
 					resolveExpression(node.expression, parent);
 					break;
+				case 'FunctionDeclaration':
+					console.log(node);
+					var func = resolveFunctionExpression(node);
+					vars[func.name] = func;
+
+					console.log('[FUNC]'.blue, pos(node), func.name, func);
+					break;
+				// default:
+				// 	console.log(node);
+				// 	break;
 			}
 
 		}
@@ -100,7 +122,14 @@ function createNewScope(ast, parentVars) {
 				});
 				break;
 			case 'CallExpression':
-				return resolveCallExpression(right);
+				var ce = resolveCallExpression(right);
+				var ceName = f(ce.name);
+				console.log('[CE]'.blue, pos(right), ce.name, ceName);
+				isSink(ceName, function() {
+					console.log('[SINK]'.red, pos(right), ceName);
+				});
+
+				return ce;
 			case 'MemberExpression':
 				// console.log(resolveMemberExpression(right));
 				return resolveMemberExpression(right);
@@ -177,6 +206,15 @@ function createNewScope(ast, parentVars) {
 		return obj;
 	}
  
+	function resolveFunctionExpression(node) {
+		var f = {
+			name: node.id ? node.id.name : '',
+			params: _.pluck(node.params, 'name'),
+			body: node.body
+		};
+		return f;
+	}
+
 	function simplifyArguments(args) {
 		var newArgs = [];
 		args.forEach(function (i) {
@@ -191,7 +229,10 @@ function createNewScope(ast, parentVars) {
 					newArgs.push(resolveCallExpression(i));
 					break;
 				case 'FunctionExpression':
-					createNewScope(i, vars);
+					var func = resolveFunctionExpression(i);
+					newArgs.push(func);
+					createNewScope(func.body, func.params);
+					console.log('[FUNC]'.blue, pos(i), func);
 					break;
 				// default:
 				//	console.log(i.type, i);
@@ -212,6 +253,17 @@ function climb(ast) {
 	} else {
 		return [ast];
 	}
+}
+
+function concat(a,b) {
+	c = {};
+	for (var key in a) {
+		c[key] = a[key];
+	}
+	for (var key in b) {
+		c[key] = b[key];
+	}
+	return c;
 }
 
 function pos(node) {
