@@ -33,9 +33,12 @@ function createNewScope(ast, parentVars, params) {
 	estraverse.traverse(ast, {
 		enter: function (node, parent) {
 			// console.log(node);
-			if (parent && (parent.type != 'Program' && parent.type != 'BlockStatement')) { // Check top level expressions only
-				this.skip();
-			}
+			// if (parent && (parent.type != 'Program' && parent.type != 'BlockStatement')) { 
+			// 	// Check top level expressions only
+			// 	// Don't remember why I was doing this
+			// 	this.skip();
+			// } 
+			
 			switch (node.type) {
 				case 'VariableDeclarator':
 					if (node.init) {
@@ -46,7 +49,8 @@ function createNewScope(ast, parentVars, params) {
 					ce = resolveCallExpression(node);
 					if (ce.name) {
 						var ceName = f(ce.name);
-						console.log('[CE]'.blue, pos(node), ce.name, ceName);
+
+						console.log('[CE]'.green, pos(node), ce.name, ceName);
 						isSink(ceName, function() {
 							console.log('[SINK]'.red, pos(node), ceName);
 						});
@@ -62,7 +66,13 @@ function createNewScope(ast, parentVars, params) {
 						
 					break;
 				case 'ExpressionStatement':
-					resolveExpression(node.expression, parent);
+					try {
+						resolveExpression(node.expression, parent);
+					
+					} catch(e) {
+						console.error(e);
+						console.log(node)
+					}
 					break;
 				case 'FunctionDeclaration':
 					console.log(node);
@@ -98,6 +108,7 @@ function createNewScope(ast, parentVars, params) {
 	}
 
 	function resolveRight(name, right) {
+		// console.log(name, pos(right), right);
 		switch (right.type) {
 			case 'Literal':
 				// If right.value is bad, mark variable as bad
@@ -196,10 +207,10 @@ function createNewScope(ast, parentVars, params) {
 	}
 
 	function resolveObjectExpression(node) {
-		console.log('[JSON]'.blue);
+		console.log('[JSON]'.blue, pos(node));
 		var obj = {};
 		node.properties.forEach(function(i) {
-			obj[i.key.name] = resolveRight(i.value);
+			obj[i.key.name] = resolveRight(i.key.name, i.value);
 			console.log(i.key.name, obj[i.key]);
 
 		});
