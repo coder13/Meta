@@ -1,10 +1,7 @@
-var a = userinput;
+a = [1,2,3,4];
 
-eval(userinput);
+console.log(a[2]);
 
-function p(ui) {
-	print(ui);
-	eval(ui);
+for (var i = 0; i < a.length; i++) {
+	console.log(i, a[i]);
 }
-
-p(2);

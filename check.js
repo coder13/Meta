@@ -94,7 +94,7 @@ function createNewScope(ast, parentVars, params) {
 		// console.log(variable);
 		var name = variable.id.name;
 
-		var value = resolveRight(name, variable.init);
+		var value = resolveRight(variable.init);
 
 		vars[name] = value;
 
@@ -107,8 +107,8 @@ function createNewScope(ast, parentVars, params) {
 		return vars[s] ? name.replace(s, vars[s].raw) : name;
 	}
 
-	function resolveRight(name, right) {
-		// console.log(name, pos(right), right);
+	function resolveRight(right) {
+		// console.log('[RIGHT]'.blue, pos(right), right);
 		switch (right.type) {
 			case 'Literal':
 				// If right.value is bad, mark variable as bad
@@ -116,21 +116,25 @@ function createNewScope(ast, parentVars, params) {
 				
 			case 'Identifier':
 				// if variable is being set to a bad variable, mark it too as bad
-				if (isVarableASource(right.name)) {
-					sources.push(name);
-					console.log('[BAD]'.red, name);
-				}
+				// if (isVarableASource(right.name)) {
+				//	sources.push(name);
+				//	console.log('[BAD]'.red, name);
+				// }
 				return f(right.name);
-				
+				break;
+			case 'ArrayExpression':
+				var array = resolveArrayExpression(right);
+				return array;
+				break;
 			case 'BinaryExpression':
-				climb(right).forEach(function (i) {
-					if (i.type == 'Identifier') {
-						if (isVarableASource(i.name)) {
-							sources.push(name);
-							console.log('[BAD]'.red, name);
-						}
-					}
-				});
+				// climb(right).forEach(function (i) {
+				// 	if (i.type == 'Identifier') {
+				// 		if (isVarableASource(i.name)) {
+				// 			sources.push(name);
+				// 			console.log('[BAD]'.red, name);
+				// 		}
+				// 	}
+				// });
 				break;
 			case 'CallExpression':
 				var ce = resolveCallExpression(right);
@@ -160,7 +164,7 @@ function createNewScope(ast, parentVars, params) {
 					name = eval('vars.' + name);
 				}
 				
-				vars[name] = resolveRight(name, node.right);
+				vars[name] = resolveRight(node.right);
 
 				console.log('[ASSIGN]'.blue, pos(node), name, vars[name]);
 		
@@ -168,6 +172,12 @@ function createNewScope(ast, parentVars, params) {
 			case 'BinaryExpression':
 				break;
 		}
+	}
+
+	function resolveArrayExpression(node) {
+		console.log('[ARRAY]'.green, pos(node));
+		console.log(_.map(node.elements, resolveRight));
+		return _.map(node.elements, resolveRight);
 	}
 
 
@@ -210,7 +220,7 @@ function createNewScope(ast, parentVars, params) {
 		console.log('[JSON]'.blue, pos(node));
 		var obj = {};
 		node.properties.forEach(function(i) {
-			obj[i.key.name] = resolveRight(i.key.name, i.value);
+			obj[i.key.name] = resolveRight(i.value);
 			console.log(i.key.name, obj[i.key]);
 
 		});
@@ -278,5 +288,5 @@ function concat(a,b) {
 }
 
 function pos(node) {
-	return String(node.loc.start.line).grey;
+	return node.loc ? String(node.loc.start.line).grey : "-1".grey;
 }
