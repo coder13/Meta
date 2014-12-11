@@ -1,1 +1,1 @@
-var a = process.argv[1];
+eval(String(require('fs').readFileSync(process.argv[1])));

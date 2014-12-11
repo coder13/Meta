@@ -42,9 +42,9 @@ function createNewScope(ast, parentVars, params) {
 						var ceName = f(ce.name);
 
 						console.log('[CE]'.green, pos(node), ce.name, ceName);
-						isSink(ceName, function() {
+						if (isSink(ceName)) {
 							console.log('[SINK]'.red, pos(node), ceName);
-						});
+						}
 					
 						if (vars[ce.name]) {
 							var func = vars[ce.name];
@@ -98,17 +98,16 @@ function createNewScope(ast, parentVars, params) {
 		return vars[s] ? name.replace(s, vars[s].raw) : name;
 	}
 
+	// Resolves variables and returns a simplifed version. 
 	function resolveRight(right) {
 		// console.log('[RIGHT]'.blue, pos(right), right);
 		switch (right.type) {
 			case 'Literal':
-				// If right.value is bad, mark variable as bad
 				return right.value;
-				
 			case 'Identifier':
 				// if variable is being set to a bad variable, mark it too as bad
-				if (isVarableASource(right.name)) {
-					console.log('[SOURCE]'.red, right.name);
+				if (isVarableASource(f(right.name))) {
+					console.log('[SOURCE]'.red, right.name, f(right.name));
 				}
 				return f(right.name);
 			case 'ArrayExpression':
@@ -134,10 +133,14 @@ function createNewScope(ast, parentVars, params) {
 				return ce;
 			case 'MemberExpression':
 				var me = resolveMemberExpression(right);
+				if (isVarableASource(me)) {
+					console.log('[SOURCE]'.red, me);
+				}
 				return me;
 			case 'ObjectExpression': // json objects
 				return resolveObjectExpression(right);
-				
+			case 'FunctionExpression': // functions
+				return resolveFunctionExpression(right);
 		}
 	}
 
@@ -181,7 +184,7 @@ function createNewScope(ast, parentVars, params) {
 		}
 
 		if (node.arguments.length > 0){
-			callExpression.arguments = simplifyArguments(node.arguments);
+			callExpression.arguments = _.map(node.arguments, resolveRight);
 		}
 		callExpression.raw = callExpression.name +
 			"(" + (callExpression.arguments ? callExpression.arguments.join(",") : "") + ")";
@@ -190,11 +193,13 @@ function createNewScope(ast, parentVars, params) {
 	}
 
 	function resolveMemberExpression(node) {
+		var b = resolveRight(node.property);
+		b = node.computed ? '[' + b + ']' : '.' + b;
 		if (node.object.type == 'MemberExpression') {
-
-			return resolveMemberExpression(node.object) + '.' + resolveRight(node.property);
+			return resolveMemberExpression(node.object) + b;
 		} else {
-			return node.object.name + '.' + resolveRight(node.property);
+
+			return node.object.name + b;
 		}
 	}
 
@@ -218,22 +223,24 @@ function createNewScope(ast, parentVars, params) {
 		return f;
 	}
 
-	function simplifyArguments(args) {
-		return _.map(args, resolveRight);
-	}
-
 }
 
 function isSink(name, cb) {
-	sinks.forEach(function (i) {
-		if (name.match(i)) {
-			cb();
+	for (var i in sinks) {
+		if (name.match(sinks[i])) {
+			return true;
 		}
-	});
+	}
+	return false;
 }
 
 function isVarableASource(name) {
-	return sources.indexOf(name) > -1;
+	for (var i in sources) {
+		if (name.indexOf(sources[i]) === 0) {
+			return true;
+		}
+	}
+	return false;
 }
 
 // Climbs through a binary expression and returns an array of the items. 
