@@ -9,10 +9,10 @@ var file = process.argv[2],
 var input = fs.readFileSync(file);
 var astInput = esprima.parse(input, {loc: true});
 
-fs.writeFileSync("checkASTOutput.json",JSON.stringify(astInput));
+fs.writeFileSync("checkASTOutput.json",JSON.stringify(esprima.parse(input)));
 
 var sinks = require('./danger.json').sinks,
-	sources = ['userinput'], modules = [];
+	sources = require('./danger.json').sources, modules = [];
 
 createNewScope(astInput, {}, []);
 
@@ -20,15 +20,6 @@ function createNewScope(ast, parentVars, params) {
 	console.log('creating new scope'.red);
 	var vars = parentVars;
 
-	console.log(parentVars);
-
-	function isSink(name, cb) {
-		sinks.forEach(function (i) {
-			if (name.match(i)) {
-				cb();
-			}
-		});
-	}
 
 	estraverse.traverse(ast, {
 		enter: function (node, parent) {
@@ -58,7 +49,7 @@ function createNewScope(ast, parentVars, params) {
 						if (vars[ce.name]) {
 							var func = vars[ce.name];
 							var args = _.object(func.params, ce.arguments);
-							createNewScope(func.body, concat(vars, args));
+							createNewScope(func.body, _.extend(vars, args));
 
 						}
 
@@ -71,7 +62,7 @@ function createNewScope(ast, parentVars, params) {
 					
 					} catch(e) {
 						console.error(e);
-						console.log(node)
+						console.log(node);
 					}
 					break;
 				case 'FunctionDeclaration':
@@ -116,25 +107,21 @@ function createNewScope(ast, parentVars, params) {
 				
 			case 'Identifier':
 				// if variable is being set to a bad variable, mark it too as bad
-				// if (isVarableASource(right.name)) {
-				//	sources.push(name);
-				//	console.log('[BAD]'.red, name);
-				// }
+				if (isVarableASource(right.name)) {
+					console.log('[SOURCE]'.red, right.name);
+				}
 				return f(right.name);
-				break;
 			case 'ArrayExpression':
 				var array = resolveArrayExpression(right);
 				return array;
-				break;
 			case 'BinaryExpression':
-				// climb(right).forEach(function (i) {
-				// 	if (i.type == 'Identifier') {
-				// 		if (isVarableASource(i.name)) {
-				// 			sources.push(name);
-				// 			console.log('[BAD]'.red, name);
-				// 		}
-				// 	}
-				// });
+				climb(right).forEach(function (i) {
+					if (i.type == 'Identifier') {
+						if (isVarableASource(i.name)) {
+							console.log('[BAD]'.red, name);
+						}
+					}
+				});
 				break;
 			case 'CallExpression':
 				var ce = resolveCallExpression(right);
@@ -146,8 +133,8 @@ function createNewScope(ast, parentVars, params) {
 
 				return ce;
 			case 'MemberExpression':
-				// console.log(resolveMemberExpression(right));
-				return resolveMemberExpression(right);
+				var me = resolveMemberExpression(right);
+				return me;
 			case 'ObjectExpression': // json objects
 				return resolveObjectExpression(right);
 				
@@ -180,28 +167,22 @@ function createNewScope(ast, parentVars, params) {
 		return _.map(node.elements, resolveRight);
 	}
 
-
 	// turns a call expression into a simple json object
 	function resolveCallExpression(node) {
 		if (!node) // node can sometimes be undefined. Find out why later.
 			return;
 		var callExpression = {};
 		if (node && node.type == 'CallExpression') {
-			
-			// console.log(node.callee.name);
 			if (node.callee.type == 'MemberExpression') {
-				cName = node.callee.object.name;
-				
 				callExpression.name = resolveMemberExpression(node.callee);
-				// console.log(callExpression.name);
 			} else {
 				callExpression.name = node.callee.name;
 			}
 		}
 
-		if (node.arguments.length > 0)
+		if (node.arguments.length > 0){
 			callExpression.arguments = simplifyArguments(node.arguments);
-
+		}
 		callExpression.raw = callExpression.name +
 			"(" + (callExpression.arguments ? callExpression.arguments.join(",") : "") + ")";
 
@@ -210,9 +191,10 @@ function createNewScope(ast, parentVars, params) {
 
 	function resolveMemberExpression(node) {
 		if (node.object.type == 'MemberExpression') {
-			return resolveMemberExpression(node.object) + '.' + node.property.name;
+
+			return resolveMemberExpression(node.object) + '.' + resolveRight(node.property);
 		} else {
-			return node.object.name + '.' + node.property.name;
+			return node.object.name + '.' + resolveRight(node.property);
 		}
 	}
 
@@ -237,54 +219,30 @@ function createNewScope(ast, parentVars, params) {
 	}
 
 	function simplifyArguments(args) {
-		var newArgs = [];
-		args.forEach(function (i) {
-			switch (i.type) {
-				case 'Literal':
-					newArgs.push("'" + i.value + "'");
-					break;
-				case 'Identifier':
-					newArgs.push(i.name);
-					break;
-				case 'CallExpression':
-					newArgs.push(resolveCallExpression(i));
-					break;
-				case 'FunctionExpression':
-					var func = resolveFunctionExpression(i);
-					newArgs.push(func);
-					createNewScope(func.body, func.params);
-					console.log('[FUNC]'.blue, pos(i), func);
-					break;
-				// default:
-				//	console.log(i.type, i);
-			}
-		});
-		return newArgs;
+		return _.map(args, resolveRight);
 	}
 
+}
+
+function isSink(name, cb) {
+	sinks.forEach(function (i) {
+		if (name.match(i)) {
+			cb();
+		}
+	});
 }
 
 function isVarableASource(name) {
 	return sources.indexOf(name) > -1;
 }
 
+// Climbs through a binary expression and returns an array of the items. 
 function climb(ast) {
 	if (ast.type == 'BinaryExpression') {
 		return climb(ast.left).concat(climb(ast.right));
 	} else {
 		return [ast];
 	}
-}
-
-function concat(a,b) {
-	c = {};
-	for (var key in a) {
-		c[key] = a[key];
-	}
-	for (var key in b) {
-		c[key] = b[key];
-	}
-	return c;
 }
 
 function pos(node) {
