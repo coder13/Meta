@@ -166,7 +166,6 @@ function createNewScope(ast, parentVars, params) {
 
 	function resolveArrayExpression(node) {
 		console.log('[ARRAY]'.green, pos(node));
-		console.log(_.map(node.elements, resolveRight));
 		return _.map(node.elements, resolveRight);
 	}
 
@@ -210,7 +209,6 @@ function createNewScope(ast, parentVars, params) {
 		var obj = {};
 		node.properties.forEach(function(i) {
 			obj[i.key.name] = resolveRight(i.value);
-			console.log(i.key.name, obj[i.key]);
 
 		});
 		return obj;
