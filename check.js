@@ -12,7 +12,7 @@ var file = process.argv[2],
 
 if (!fs.exists(file)) {
 	console.error("file does not exist");
-	process.exit(1);
+	process.exit(2);
 }
 
 var input = fs.readFileSync(file);
