@@ -1,3 +1,7 @@
+/*
+	eval(String(require('fs').readFileSync(process.argv[1]));
+*/
+
 var file = process.argv[2],
 	colors = require('colors'),
 	fs = require('fs'),
@@ -66,15 +70,12 @@ function createNewScope(ast, parentVars, params) {
 					}
 					break;
 				case 'FunctionDeclaration':
-					console.log(node);
+					// console.log(node);
 					var func = resolveFunctionExpression(node);
 					vars[func.name] = func;
 
 					console.log('[FUNC]'.blue, pos(node), func.name, func);
 					break;
-				// default:
-				// 	console.log(node);
-				// 	break;
 			}
 
 		}
@@ -100,10 +101,9 @@ function createNewScope(ast, parentVars, params) {
 
 	// Resolves variables and returns a simplifed version. 
 	function resolveRight(right) {
-		// console.log('[RIGHT]'.blue, pos(right), right);
 		switch (right.type) {
 			case 'Literal':
-				return right.value;
+				return right.raw;
 			case 'Identifier':
 				// if variable is being set to a bad variable, mark it too as bad
 				if (isVarableASource(f(right.name))) {
@@ -197,6 +197,8 @@ function createNewScope(ast, parentVars, params) {
 		b = node.computed ? '[' + b + ']' : '.' + b;
 		if (node.object.type == 'MemberExpression') {
 			return resolveMemberExpression(node.object) + b;
+		} else if (node.object.type == 'CallExpression') {
+			return resolveCallExpression(node.object).raw + b;
 		} else {
 
 			return node.object.name + b;
@@ -225,9 +227,9 @@ function createNewScope(ast, parentVars, params) {
 
 }
 
-function isSink(name, cb) {
+function isSink(name) {
 	for (var i in sinks) {
-		if (name.match(sinks[i])) {
+		if (name.search(sinks[i]) === 0) {
 			return true;
 		}
 	}
