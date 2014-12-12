@@ -10,15 +10,20 @@ var file = process.argv[2],
 	estraverse = require('estraverse'),
 	_ = require('underscore');
 
+if (!fs.exists(file)) {
+	console.error("file does not exist");
+	process.exit(1);
+}
+
 var input = fs.readFileSync(file);
 var astInput = esprima.parse(input, {loc: true});
 
-fs.writeFileSync("checkASTOutput.json",JSON.stringify(esprima.parse(input)));
+fs.writeFileSync("checkASTOutput.json", JSON.stringify(esprima.parse(input)));
 
 var sinks = require('./danger.json').sinks,
 	sources = require('./danger.json').sources, modules = [];
 
-createNewScope(astInput, {}, []);
+createNewScope(astInput, {'module': {}, 'global': {}, 'process': {}}, []);
 
 function createNewScope(ast, parentVars, params) {
 	console.log('creating new scope'.red);

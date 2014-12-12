@@ -1,1 +1,3 @@
-eval(String(require('fs').readFileSync(process.argv[1])));
+;(function() {
+	console.log('test');
+})();
