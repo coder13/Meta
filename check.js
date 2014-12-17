@@ -1,5 +1,5 @@
 /*
-	eval(String(require('fs').readFileSync(process.argv[1]));
+	;(function() {eval(String(require('fs').readFileSync(process.argv[1]));})()
 */
 
 var file = process.argv[2],
@@ -10,113 +10,75 @@ var file = process.argv[2],
 	estraverse = require('estraverse'),
 	_ = require('underscore');
 
-if (!fs.exists(file)) {
+if (!fs.existsSync(__dirname + "/" + file)) {
 	console.error("file does not exist");
 	process.exit(2);
 }
 
+
 var input = fs.readFileSync(file);
 var astInput = esprima.parse(input, {loc: true});
+
+var custom = [function(node, scope) { // http.get
+	// assertions
+	if (node.type != 'CallExpression')
+		return;
+
+	var ce = scope.resolveCallExpression(node);
+	if (scope.resolve(ce.name) != 'require(\'http\').get') {
+		return;
+	}
+	
+	var func = ce.arguments[1];
+
+	func.scope.sources = func.scope.sources.concat(func.params[0]);
+	traverse(func.body, func.scope);
+
+}];
 
 fs.writeFileSync("checkASTOutput.json", JSON.stringify(esprima.parse(input)));
 
 var sinks = require('./danger.json').sinks,
 	sources = require('./danger.json').sources, modules = [];
 
-createNewScope(astInput, {'module': {}, 'global': {}, 'process': {}}, []);
-
-function createNewScope(ast, parentVars, params) {
-	console.log('creating new scope'.red);
-	var vars = parentVars;
-
-
-	estraverse.traverse(ast, {
-		enter: function (node, parent) {
-			// console.log(node);
-			// if (parent && (parent.type != 'Program' && parent.type != 'BlockStatement')) { 
-			// 	// Check top level expressions only
-			// 	// Don't remember why I was doing this
-			// 	this.skip();
-			// } 
-			
-			switch (node.type) {
-				case 'VariableDeclarator':
-					if (node.init) {
-						track(node);
-					}
-					break;
-				case 'CallExpression':
-					ce = resolveCallExpression(node);
-					if (ce.name) {
-						var ceName = f(ce.name);
-
-						console.log('[CE]'.green, pos(node), ce.name, ceName);
-						if (isSink(ceName)) {
-							console.log('[SINK]'.red, pos(node), ceName);
-						}
-					
-						if (vars[ce.name]) {
-							var func = vars[ce.name];
-							var args = _.object(func.params, ce.arguments);
-							createNewScope(func.body, _.extend(vars, args));
-
-						}
-
-					}
-						
-					break;
-				case 'ExpressionStatement':
-					try {
-						resolveExpression(node.expression, parent);
-					
-					} catch(e) {
-						console.error(e);
-						console.log(node);
-					}
-					break;
-				case 'FunctionDeclaration':
-					// console.log(node);
-					var func = resolveFunctionExpression(node);
-					vars[func.name] = func;
-
-					console.log('[FUNC]'.blue, pos(node), func.name, func);
-					break;
-			}
-
-		}
-	});
+Scope = function(scope) {
+	console.log('creating new scope'.yellow);
+	var self = this;
+	self.vars = scope.vars||[];
+	self.sources = scope.sources||[];
+	self.depth = (scope.depth||-1) + 1;
 
 	// handles creation of variables. 
-	function track(variable) {
+	self.track = function(variable) {
 		// console.log(variable);
 		var name = variable.id.name;
 
-		var value = resolveRight(variable.init);
+		var value = self.resolveRight(variable.init);
 
-		vars[name] = value;
+		self.vars[name] = value;
 
 		console.log('[VAR]'.blue, pos(variable), name, value);
 		
-	}
+	};
 
-	function f(name) { // rename later; returns a value for a variable if one exists
+	self.resolve = function(name) { // rename later; returns a value for a variable if one exists
 		var s = name.indexOf('.') == -1 ? name : name.split('.').slice(0,-1).join('.');
-		return vars[s] ? name.replace(s, vars[s].raw) : name;
-	}
+		return self.vars[s] ? name.replace(s, self.vars[s].raw) : name;
+	};
 
 	// Resolves variables and returns a simplifed version. 
-	function resolveRight(right) {
+	self.resolveRight = function(right) {
 		switch (right.type) {
 			case 'Literal':
 				return right.raw;
 			case 'Identifier':
 				// if variable is being set to a bad variable, mark it too as bad
-				if (isVarableASource(f(right.name))) {
-					console.log('[SOURCE]'.red, right.name, f(right.name));
+				if (isVarableASource(self.resolve(right.name))) {
+					console.log('[SOURCE]'.red, right.name, self.resolve(right.name));
 				}
-				return f(right.name);
+				return self.resolve(right.name);
 			case 'ArrayExpression':
-				var array = resolveArrayExpression(right);
+				var array = self.resolveArrayExpression(right);
 				return array;
 			case 'BinaryExpression':
 				climb(right).forEach(function (i) {
@@ -128,8 +90,8 @@ function createNewScope(ast, parentVars, params) {
 				});
 				break;
 			case 'CallExpression':
-				var ce = resolveCallExpression(right);
-				var ceName = f(ce.name);
+				var ce = self.resolveCallExpression(right);
+				var ceName = self.resolve(ce.name);
 				console.log('[CE]'.blue, pos(right), ce.name, ceName);
 				isSink(ceName, function() {
 					console.log('[SINK]'.red, pos(right), ceName);
@@ -137,98 +99,157 @@ function createNewScope(ast, parentVars, params) {
 
 				return ce;
 			case 'MemberExpression':
-				var me = resolveMemberExpression(right);
+				var me = self.resolveMemberExpression(right);
 				if (isVarableASource(me)) {
 					console.log('[SOURCE]'.red, me);
 				}
 				return me;
 			case 'ObjectExpression': // json objects
-				return resolveObjectExpression(right);
+				return self.resolveObjectExpression(right);
 			case 'FunctionExpression': // functions
-				return resolveFunctionExpression(right);
+				return self.resolveFunctionExpression(right);
 		}
-	}
+	};
 
-	// designed to recursively resolve epressions
-	function resolveExpression(node, parent) {
-		switch (node.type) {
-			case 'AssignmentExpression':
-				var name = node.left.name;
-				if (node.left.type == 'MemberExpression') {
-					name = resolveMemberExpression(node.left);
-					name = eval('vars.' + name);
-				}
-				
-				vars[name] = resolveRight(node.right);
-
-				console.log('[ASSIGN]'.blue, pos(node), name, vars[name]);
-		
-				break;
-			case 'BinaryExpression':
-				break;
-		}
-	}
-
-	function resolveArrayExpression(node) {
+	self.resolveArrayExpression = function(node) {
 		console.log('[ARRAY]'.green, pos(node));
-		return _.map(node.elements, resolveRight);
-	}
+		return _.map(node.elements, self.resolveRight);
+	};
 
 	// turns a call expression into a simple json object
-	function resolveCallExpression(node) {
+	self.resolveCallExpression = function(node) {
 		if (!node) // node can sometimes be undefined. Find out why later.
 			return;
 		var callExpression = {};
 		if (node && node.type == 'CallExpression') {
 			if (node.callee.type == 'MemberExpression') {
-				callExpression.name = resolveMemberExpression(node.callee);
+				callExpression.name = self.resolveMemberExpression(node.callee);
 			} else {
 				callExpression.name = node.callee.name;
 			}
 		}
 
 		if (node.arguments.length > 0){
-			callExpression.arguments = _.map(node.arguments, resolveRight);
+			callExpression.arguments = _.map(node.arguments, self.resolveRight);
 		}
 		callExpression.raw = callExpression.name +
 			"(" + (callExpression.arguments ? callExpression.arguments.join(",") : "") + ")";
 
 		return callExpression;
-	}
+	};
 
-	function resolveMemberExpression(node) {
-		var b = resolveRight(node.property);
+	self.resolveMemberExpression = function(node) {
+		var b = self.resolveRight(node.property);
 		b = node.computed ? '[' + b + ']' : '.' + b;
 		if (node.object.type == 'MemberExpression') {
-			return resolveMemberExpression(node.object) + b;
+			return self.resolveMemberExpression(node.object) + b;
 		} else if (node.object.type == 'CallExpression') {
-			return resolveCallExpression(node.object).raw + b;
+			return self.resolveCallExpression(node.object).raw + b;
 		} else {
 
 			return node.object.name + b;
 		}
-	}
+	};
 
-	function resolveObjectExpression(node) {
+	self.resolveObjectExpression = function(node) {
 		console.log('[JSON]'.blue, pos(node));
 		var obj = {};
 		node.properties.forEach(function(i) {
-			obj[i.key.name] = resolveRight(i.value);
+			obj[i.key.name] = self.resolveRight(i.value);
 
 		});
 		return obj;
-	}
+	};
  
-	function resolveFunctionExpression(node) {
+	self.resolveFunctionExpression = function(node) {
 		var f = {
 			name: node.id ? node.id.name : '',
 			params: _.pluck(node.params, 'name'),
 			body: node.body
 		};
-		return f;
-	}
 
-}
+
+		f.scope = new Scope(self);
+		for (var i in f.params) {
+			f.scope.addVar(f.params[i], undefined);
+		}
+
+		return f;
+	};
+
+	self.addVar = function(name, value) {
+		self.vars[name] = value;
+	};
+
+};
+
+traverse = function(ast, scope) {
+	console.log('[SOURCES]'.red, scope.sources);
+	estraverse.traverse(ast, {
+		enter: function (node, parent) {
+			// console.log(node);
+
+			if (parent && parent.type != 'Program' && parent.type != 'BlockStatement') {
+				this.skip();
+			}
+
+			switch (node.type) {
+				case 'VariableDeclarator':
+					if (node.init) {
+						scope.track(node);
+					}
+					break;
+				case 'CallExpression':
+					ce = scope.resolveCallExpression(node);
+					if (ce.name) {
+						var ceName = scope.resolve(ce.name);
+
+						console.log('[CE]'.green, pos(node), ce.name, ceName);
+						if (isSink(ceName)) {
+							console.log('[SINK]'.red, pos(node), ceName);
+						}
+					
+						if (scope.vars[ce.name]) {
+							var func = scope.vars[ce.name];
+							var args = _.object(func.params, ce.arguments);
+							// createNewScope(func.body, _.extend(scope.vars, args));
+						}
+
+					}
+						
+					break;
+				case 'AssignmentStatement':
+					var name = node.left.name;
+					if (node.left.type == 'MemberExpression') {
+						name = scope.resolveMemberExpression(node.left);
+						name = eval('scope.vars.' + name);
+					}
+					
+					scope.vars[name] = Scope.resolveRight(node.right);
+
+					console.log('[ASSIGN]'.blue, pos(node), name, scope.vars[name]);
+					break;
+				case 'FunctionDeclaration':
+					// console.log(node);
+					var func = scope.resolveFunctionExpression(node);
+					scope.vars[func.name] = func;
+
+					console.log('[FUNC]'.blue, pos(node), func.name, func);
+					break;
+				case 'ExpressionStatement':
+					custom[0](node.expression, scope);
+					// custom.forEach(function(i) {
+					// 	i(node.expression, scope);
+					// });
+					break;
+			}
+
+		}
+	});
+};
+
+var scope = new Scope({vars: {'module': {}, 'global': {}, 'process': {}}, sources: sources});
+traverse(astInput, scope);
 
 function isSink(name) {
 	for (var i in sinks) {
