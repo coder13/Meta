@@ -1,0 +1,4 @@
+[SOURCES] process.argv
+[SOURCE] 1 process.argv[1]
+[SINK] [90m1[39m require('fs').readFileSync
+[SINK] 1 eval
