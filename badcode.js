@@ -3,7 +3,7 @@ var exec = require("child_process").exec,
 	url = require('url'),
 	fs = require('fs'),
 	querystring = require('querystring'),
-	a = userinput, // a is now a sink. 
+	a = process.argv[2], // a is now a sink. 
 	b = "2",
 	c = abc('def', 5);
 

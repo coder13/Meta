@@ -37,9 +37,6 @@ Scope = function(scope) {
 	console.log('creating new scope'.yellow);
 	this.vars = scope.vars||[];
 	this.sources = scope.sources||[];
-	this.depth = (scope.depth||-1) + 0.9;
-	if (scope.log)
-		this.log = scope.log;
 	self = this;
 };
 
@@ -48,7 +45,10 @@ Scope.prototype.track = function(variable) {
 	// console.log(variable);
 	var name = variable.id.name;
 
-	var value = self.resolveRight(variable.init);
+	var value = self.resolveRight(variable.init, function() {
+		self.sources.push(name);
+		console.log('[SOURCE]'.red, pos(variable).grey, name);
+	});
 
 	self.vars[name] = value;
 
@@ -59,22 +59,28 @@ Scope.prototype.track = function(variable) {
 
 // returns a value for a variable if one exists
 Scope.prototype.resolve = function(name) {
-	var s = name.indexOf('.') == -1 ? name : name.split('.').slice(0,-1).join('.');
-	return self.vars[s] ? name.replace(s, self.vars[s].raw||self.vars[s]) : name;
+	try {
+		var s = name.indexOf('.') == -1 ? name : name.split('.').slice(0,-1).join('.');
+		return self.vars[s] ? name.replace(s, self.vars[s].raw||self.vars[s]) : name;
+	} catch (e) {
+		return name;
+	}
 };
 
 // Resolves variables and returns a simplifed version. 
-Scope.prototype.resolveRight = function(right) {
-	if (!right)
+Scope.prototype.resolveRight = function(right, isSourceCB) {
+	if (!right){
 		return;
+	}
 	switch (right.type) {
 		case 'Literal':
 			return right.raw;
 		case 'Identifier':
 			// if variable is being set to a bad variable, mark it too as bad
-			// if (isVariableASource(self.resolve(right.name))) {
-			// 	console.log('[SOURCE]'.red, right.name, self.resolve(right.name));
-			// }
+			if (self.isVariableASource(self.resolve(right.name))) {
+				if (isSourceCB)
+					isSourceCB();
+			}
 			return self.resolve(right.name);
 		case 'ArrayExpression':
 			var array = self.resolveArrayExpression(right);
@@ -83,8 +89,8 @@ Scope.prototype.resolveRight = function(right) {
 			climb(right).forEach(function (i) {
 				if (i.type == 'Identifier') {
 					if (self.isVariableASource(i.name)) {
-						console.log('[SOURCE]'.red, name);
-						
+						if (isSourceCB)
+							isSourceCB();
 					}
 				}
 			});
@@ -93,21 +99,18 @@ Scope.prototype.resolveRight = function(right) {
 			var ce = self.resolveCallExpression(right);
 			var ceName = self.resolve(ce.name);
 			if (flags.verbose)
-				console.log('[CE]'.green, pos(right).grey, ceName);
+				console.log('[CE]'.green, pos(right).grey, ceName, ce.raw);
 
 			if (isSink(ceName)) {
 				console.log('[SINK]'.red, pos(right).grey, ceName);
-				if (scope.log)
-					scope.log.write('[SINK] ' + pos(right).grey + ' ' + ceName + '\n');
 			}
 
 			return ce;
 		case 'MemberExpression':
 			var me = self.resolveMemberExpression(right);
 			if (self.isVariableASource(me)) {
-				console.log('[SOURCE]'.red, pos(right).grey, me);
-				if (scope.log)
-					scope.log.write('[SOURCE] ' + pos(right) + ' ' + me + '\n');
+				if (isSourceCB)
+					isSourceCB();
 			}
 			return me;
 		case 'ObjectExpression': // json objects
@@ -115,7 +118,10 @@ Scope.prototype.resolveRight = function(right) {
 		case 'FunctionExpression': // functions
 			var fe = self.resolveFunctionExpression(right);
 			traverse(fe.body, fe.scope);
-			return self.resolveFunctionExpression(right);
+			return fe;
+		default:
+			// console.log(String(right.type).green);
+			return;
 	}
 };
 
@@ -127,18 +133,48 @@ Scope.prototype.resolveArrayExpression = function(node) {
 Scope.prototype.resolveCallExpression = function(node) {
 	if (!node) // node can sometimes be undefined. Find out why later.
 		return;
-	var callExpression = {};
+	var ce = {};
 	if (node && node.type == 'CallExpression') {
-		callExpression.name = self.resolveName(node.callee);
+		ce.name = self.resolveName(node.callee);
 	}
 
 	if (node.arguments.length > 0){
-		callExpression.arguments = _.map(node.arguments, self.resolveRight);
+		_resolveRight = function(right) {
+			return self.resolveRight(right, function() {});
+		};
+		ce.arguments = _.map(node.arguments, _resolveRight);
 	}
-	callExpression.raw = callExpression.name +
-		"(" + (callExpression.arguments ? callExpression.arguments.join(",") : "") + ")";
+	ce.raw = ce.name +
+		"(" + (ce.arguments ? ce.arguments.join(",") : "") + ")";
 
-	return callExpression;
+	return ce;
+};
+
+Scope.prototype.resolveForStatement = function(node) {
+	var fs = {};
+	var fsScope = new Scope(self);
+	for (var i = 0; i < node.init.declarations.length; i++) {
+		var v = node.init.declarations[i];
+		fsScope.track(v);
+	}
+	test = (function(test) {
+		var t= {left: self.resolveName(test.left),
+				operator: test.operator,
+				right: self.resolveRight(test.right)};
+		t.raw = String(t.left) + " " + t.operator + " " + t.right;
+		return t;
+	})(node.test);
+	console.log('[TEST]'.blue, pos(node).grey, test.raw);
+
+	traverse(node.body, fsScope);
+	return fs;
+};
+
+Scope.prototype.resolveWhileStatement = function(node) {
+	var ws = {};
+
+
+	return ws;
 };
 
 Scope.prototype.resolveName = function(name) {
@@ -162,8 +198,6 @@ Scope.prototype.resolveMemberExpression = function(node) {
 };
 
 Scope.prototype.resolveObjectExpression = function(node) {
-	if (flags.verbose)
-		console.log('[JSON]'.blue, pos(node).grey);
 	var obj = {};
 	node.properties.forEach(function(i) {
 		obj[i.key.name] = self.resolveRight(i.value);
@@ -173,19 +207,19 @@ Scope.prototype.resolveObjectExpression = function(node) {
 };
 
 Scope.prototype.resolveFunctionExpression = function(node) {
-	var f = {
+	var fe = {
 		name: node.id ? node.id.name : '',
 		params: _.pluck(node.params, 'name'),
 		body: node.body
 	};
 
 
-	f.scope = new Scope(self);
-	for (var i in f.params) {
-		f.scope.addVar(f.params[i], undefined);
+	fe.scope = new Scope(self);
+	for (var i in fe.params) {
+		fe.scope.addVar(fe.params[i], undefined);
 	}
 
-	return f;
+	return fe;
 };
 
 Scope.prototype.addVar = function(name, value) {
@@ -214,14 +248,12 @@ module.exports.Scope = Scope;
 
 traverse = module.exports.traverse = function(ast, scope) {
 	console.log('[SOURCES]'.red, scope.sources);
-	if (scope.log){
-		console.log('logging');
-		scope.log.write('[SOURCES] ' + String(scope.sources) + '\n');
-	}
 	estraverse.traverse(ast, {
 		enter: function (node, parent) {
 			// console.log(node);
 
+
+			// traverse top level expressions only
 			if (parent && parent.type != 'Program' && parent.type != 'BlockStatement') {
 				this.skip();
 			}
@@ -238,13 +270,11 @@ traverse = module.exports.traverse = function(ast, scope) {
 					var ceName = scope.resolve(ce.name);
 
 					if (flags.verbose)
-						console.log('[CE]'.blue, pos(node).grey, ce.name, ceName);
+						console.log('[CE]'.blue, pos(node).grey, ceName, ce.raw);
 
 					
 					if (isSink(ceName)) {
 						console.log('[SINK]'.red, pos(node).grey, ceName);
-						if (scope.log)
-							scope.log.write('[SINK] ' + pos(node) + ' ' + ceName + '\n');
 					}
 				
 					if (scope.vars[ce.name]) {
@@ -253,17 +283,20 @@ traverse = module.exports.traverse = function(ast, scope) {
 						// createNewScope(func.body, _.extend(scope.vars, args));
 					}
 					break;
-				case 'AssignmentStatement':
-					var name = node.left.name;
-					if (node.left.type == 'MemberExpression') {
-						name = scope.resolveMemberExpression(node.left);
-						name = eval('scope.vars.' + name);
-					}
+				case 'AssignmentExpression':
+					var name = self.resolve(self.resolveName(node.left));
+					var value = self.resolve(self.resolveRight(node.right));
+					// if (node.left.type == 'MemberExpression') {
+					// 	name = self.resolveMemberExpression(node.left);
+					// 	name = eval('self.vars.' + name);
+					// }
 					
-					scope.vars[name] = Scope.resolveRight(node.right);
+					if (self.vars[name]) {
+						self.vars[name] = value;
+					}
 
 					if (flags.verbose)
-						console.log('[ASSIGN]'.blue, pos(node).grey, name, scope.vars[name]);
+						console.log('[ASSIGN]'.blue, pos(node).grey, name, value);
 					break;
 				case 'FunctionDeclaration':
 					// console.log(node);
@@ -278,11 +311,25 @@ traverse = module.exports.traverse = function(ast, scope) {
 						i(node.expression, scope);
 					});
 					break;
+				case 'IfStatement':
+					traverse(node.consequent, self);
+					break;
+				case 'ForStatement':
+					var fs = self.resolveForStatement(node);
+					break;
+				case 'WhileStatement':
+					var ws = self.resolveWhileStatement(node);
+					break;
+			default:
+				// console.log(String(node.type).blue);
+				return;
 			}
 
 		}
 	});
+	console.log('leaving scope'.yellow);
 };
+
 
 astFromFile = module.exports.astFromFile = function(file) {
 	if (!fs.existsSync(__dirname + "/" + file)) {
@@ -292,11 +339,11 @@ astFromFile = module.exports.astFromFile = function(file) {
 
 	var input = fs.readFileSync(file);
 	var ast = esprima.parse(input, {loc: true});
-	fs.writeFileSync("ASTOutput.json", JSON.stringify(esprima.parse(input)));
+	fs.writeFileSync("ASTOutput.json", JSON.stringify(esprima.parse(input, {comment: true}), null, '\t'));
 	return ast;
 };
 
-// Climbs through a binary expression and returns an array of the items. 
+// Returns an array from a tree of BinaryExpressions
 climb = module.exports.climb =  function(ast) {
 	if (ast.type == 'BinaryExpression') {
 		return climb(ast.left).concat(climb(ast.right));
@@ -305,6 +352,7 @@ climb = module.exports.climb =  function(ast) {
 	}
 };
 
+// Convience function to return the line of a node assuming a node has one. 
 function pos(node) {
 	return node.loc ? String(node.loc.start.line) : "-1";
 }
@@ -313,9 +361,5 @@ flags.verbose = true;
 console.log(process.argv[2].white);
 var scope = new Scope({
 	vars: {'module': {}, 'global': {}, 'process': {}},
-	sources: sources,
-	log: fs.createWriteStream('out.log')});
+	sources: sources});
 traverse(astFromFile(process.argv[2]), scope);
-if (scope.log) {
-	scope.log.end();
-}

@@ -1,14 +1,13 @@
 {
   "name": "Meta",
-  "version": "0.0.1",
+  "version": "0.2.3",
   "description": "",
-  "main": "analyze.js",
+  "main": "check.js",
   "dependencies": {
     "colors": "~0.6.2",
     "esprima": "~1.2.2",
     "estraverse": "~1.5.1",
     "underscore": "~1.7.0", 
-    "hapi": "*", 
     "resolve": "*"
   },
   "devDependencies": {},
