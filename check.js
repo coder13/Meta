@@ -34,7 +34,8 @@ sources = module.exports.sources = require('./danger.json').sources;
 var self;
 
 Scope = function(scope) {
-	console.log('creating new scope'.yellow);
+	if (flags.verbose)
+		console.log('creating new scope'.yellow);
 	this.vars = scope.vars||[];
 	this.sources = scope.sources||[];
 	self = this;
@@ -164,7 +165,8 @@ Scope.prototype.resolveForStatement = function(node) {
 		t.raw = String(t.left) + " " + t.operator + " " + t.right;
 		return t;
 	})(node.test);
-	console.log('[TEST]'.blue, pos(node).grey, test.raw);
+	if (flags.verbose)
+		console.log('[TEST]'.blue, pos(node).grey, test.raw);
 
 	traverse(node.body, fsScope);
 	return fs;
@@ -247,7 +249,8 @@ Scope.prototype.isVariableASource = function(name) {
 module.exports.Scope = Scope;
 
 traverse = module.exports.traverse = function(ast, scope) {
-	console.log('[SOURCES]'.red, scope.sources);
+	if (flags.verbose)
+		console.log('[SOURCES]'.red, scope.sources);
 	estraverse.traverse(ast, {
 		enter: function (node, parent) {
 			// console.log(node);
@@ -327,7 +330,8 @@ traverse = module.exports.traverse = function(ast, scope) {
 
 		}
 	});
-	console.log('leaving scope'.yellow);
+	if (flags.verbose)
+		console.log('leaving scope'.yellow);
 };
 
 
@@ -357,7 +361,7 @@ function pos(node) {
 	return node.loc ? String(node.loc.start.line) : "-1";
 }
 
-flags.verbose = true;
+// flags.verbose = true;
 console.log(process.argv[2].white);
 var scope = new Scope({
 	vars: {'module': {}, 'global': {}, 'process': {}},
