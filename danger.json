@@ -8,4 +8,4 @@
 	"require\\([\\'\"]http[\\'\"]\\)\\.get",
 	"require\\([\\'\"]fs[\\'\"]\\)\\.\\w+"], 
 "sources": [
-	"process.argv"]}
+	"process.argv", "require\\([\\'\"]fs[\\'\"]\\)\\.\\w+", "eval"]}

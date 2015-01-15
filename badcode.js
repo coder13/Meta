@@ -1,42 +1,24 @@
-var exec = require("child_process").exec,
-	http = require('http'),
-	url = require('url'),
-	fs = require('fs'),
-	querystring = require('querystring'),
-	a = process.argv[2], // a is now a sink. 
-	b = "2",
-	c = abc('def', 5);
+// // bad = {'eval': eval, 'setTimeout': setTimeout, 'readFileSync': require('fs').readFileSync};
 
-exec(a);  // sink; because exec is a sink and even contains a which is user input
+// // bad['eval'](process.argv[1]);
 
-b = a; // b is now a source because it was assigned to a which is userinput
+// // var a = 3;
 
-console.log(b); // not a sink; just logging. 
+// // (function () {
+// // 	var a = 2;
+// // 	console.log(a);
+// // })();
 
-cp.exec(userinput); // sink; 
+// // console.log(a);
 
-file = fs.open('BADFILE'); // not a sink? does take userinput as input. 
+// var a = function() {
+// 	b();
+// };
 
-eval("asd"); // not a sink? doesn't take userinput as input
+// var b = function() {
+// 	a();
+// };
 
-var c = userinput;
-console.log(c);
+// a();
 
-console.log(userinput); // not a sink. Just logging. 
-
-setTimeout(userinput); // Sink. 
-
-setTimeout(a(b)); //sink. 
-
-http.get("badurl", function(res) {
-
-	// res is a sink. 
-
-	a = url.parse(res);
-
-	b = "something";
-});
-
-
-//message.url
-//http.incomingmessage
+var a = require('esprima');

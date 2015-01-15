@@ -1,7 +1,7 @@
 {
-  "name": "Meta",
+  "name": "Check",
   "version": "0.2.3",
-  "description": "",
+  "description": "Static analysis tool to scan for vulneralbilites in a nodejs program.",
   "main": "check.js",
   "dependencies": {
     "colors": "~0.6.2",
@@ -12,7 +12,8 @@
   },
   "devDependencies": {},
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node check.js"
   },
   "author": "Caleb",
   "license": "BSD-2-Clause"

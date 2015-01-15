@@ -8,13 +8,18 @@ var colors = require('colors'),
 	esprima = require('esprima'),
 	estraverse = require('estraverse'),
 	_ = require('underscore'),
+	resolve = require('resolve'),
+	path = require('path'),
+	hapi = require('hapi');
 	flags = {verbose: false};
+
+sinks = module.exports.sinks = require('./danger.json').sinks;
+sources = module.exports.sources = require('./danger.json').sources;
+
+var lookupTable = {};
 
 var custom = [function(node, scope) { // http.get
 	// assertions
-	if (node.type != 'CallExpression')
-		return;
-
 	var name = scope.resolveName(node.callee); // We only want to get the name;
 	if (name != 'require(\'http\').get') {
 		return;
@@ -26,18 +31,49 @@ var custom = [function(node, scope) { // http.get
 	func.scope.sources = func.scope.sources.concat(func.params[0]);
 	traverse(func.body, func.scope);
 
+}, function(node, scope) { // require
+	var name = scope.resolveName(node.callee);
+	if (name != 'require')
+		return;
+
+	// var ce = scope.resolveCallExpression(node);
+	if (node.arguments[0].type == 'Literal') {
+		var file = node.arguments[0].value;
+		console.log(file, scope.file);
+		scope.resolvePath(file, function (pkg) {
+			if (!pkg)
+				return;
+
+			if (lookupTable[pkg])
+				return;
+			else {
+				lookupTable[pkg] = true;
+
+				var ast = astFromFile(pkg);
+				if (ast) {
+					console.log(' ---- '.yellow, pkg);
+					var newScope = new Scope({sources: sources, file:pkg});
+					console.log(file, newScope);
+					traverse(ast, newScope);
+				} else {
+					console.log(' ---- '.yellow, String(pkg).red);
+				}
+			}
+		});
+	}
+
 }];
 
-sinks = module.exports.sinks = require('./danger.json').sinks;
-sources = module.exports.sources = require('./danger.json').sources;
 
 var self;
 
 Scope = function(scope) {
-	if (flags.verbose)
-		console.log('creating new scope'.yellow);
-	this.vars = scope.vars||[];
+	this.vars = scope.vars || {};
+	if (!this.vars.module) this.vars.module = {};
+	if (!this.vars.global) this.vars.global = {};
+	if (!this.vars.process) this.vars.process = {};
 	this.sources = scope.sources||[];
+	this.file = scope.file;
 	self = this;
 };
 
@@ -46,7 +82,7 @@ Scope.prototype.track = function(variable) {
 	// console.log(variable);
 	var name = variable.id.name;
 
-	var value = self.resolveRight(variable.init, function() {
+	var value = self.resolveRight(variable.init, function(extra) {
 		self.sources.push(name);
 		console.log('[SOURCE]'.red, pos(variable).grey, name);
 	});
@@ -60,6 +96,8 @@ Scope.prototype.track = function(variable) {
 
 // returns a value for a variable if one exists
 Scope.prototype.resolve = function(name) {
+	if (self.vars[name])
+		return self.vars[name];
 	try {
 		var s = name.indexOf('.') == -1 ? name : name.split('.').slice(0,-1).join('.');
 		return self.vars[s] ? name.replace(s, self.vars[s].raw||self.vars[s]) : name;
@@ -78,29 +116,44 @@ Scope.prototype.resolveRight = function(right, isSourceCB) {
 			return right.raw;
 		case 'Identifier':
 			// if variable is being set to a bad variable, mark it too as bad
-			if (self.isVariableASource(self.resolve(right.name))) {
-				if (isSourceCB)
-					isSourceCB();
+
+			var resolved = self.resolve(right.name);
+			if (resolved && typeof resolved == 'String') {
+				if (self.isSource(resolved.name)) {
+					if (isSourceCB)
+						isSourceCB();
+				}
 			}
 			return self.resolve(right.name);
 		case 'ArrayExpression':
 			var array = self.resolveArrayExpression(right);
+			if (flags.verbose)
+				console.log('[ARRAY]'.blue, pos(right).grey, array);
 			return array;
 		case 'BinaryExpression':
 			climb(right).forEach(function (i) {
 				if (i.type == 'Identifier') {
-					if (self.isVariableASource(i.name)) {
+					if (self.isSource(i.name)) {
 						if (isSourceCB)
-							isSourceCB();
+							isSourceCB(i.name);
 					}
 				}
 			});
-			break;
+			return right;
 		case 'CallExpression':
 			var ce = self.resolveCallExpression(right);
-			var ceName = self.resolve(ce.name);
+			if (!ce.name)
+				return ce;
+			var ceName = self.resolve(ce.name).name || self.resolve(ce.name) || ce.name;
+
 			if (flags.verbose)
 				console.log('[CE]'.green, pos(right).grey, ceName, ce.raw);
+
+
+			if (self.isSource(ceName || ce.name)) {
+				if (isSourceCB)
+					isSourceCB(ceName);
+			}
 
 			if (isSink(ceName)) {
 				console.log('[SINK]'.red, pos(right).grey, ceName);
@@ -109,7 +162,7 @@ Scope.prototype.resolveRight = function(right, isSourceCB) {
 			return ce;
 		case 'MemberExpression':
 			var me = self.resolveMemberExpression(right);
-			if (self.isVariableASource(me)) {
+			if (typeof me == "string" && self.isSource(me)) {
 				if (isSourceCB)
 					isSourceCB();
 			}
@@ -126,8 +179,10 @@ Scope.prototype.resolveRight = function(right, isSourceCB) {
 	}
 };
 
-Scope.prototype.resolveArrayExpression = function(node) {
-	return _.map(node.elements, self.resolveRight);
+Scope.prototype.resolveArrayExpression = function(node, isSourceCB) {
+	return _.map(node.elements, function(right) {
+		return self.resolve(self.resolveRight(right), isSourceCB);
+	});
 };
 
 // turns a call expression into a simple json object
@@ -136,10 +191,12 @@ Scope.prototype.resolveCallExpression = function(node) {
 		return;
 	var ce = {};
 	if (node && node.type == 'CallExpression') {
+		// console.log('callee', node.callee);
+		// if (node.object.type != 'BinaryExpression')
 		ce.name = self.resolveName(node.callee);
 	}
 
-	if (node.arguments.length > 0){
+	if (node.arguments && node.arguments.length > 0){
 		_resolveRight = function(right) {
 			return self.resolveRight(right, function() {});
 		};
@@ -148,34 +205,38 @@ Scope.prototype.resolveCallExpression = function(node) {
 	ce.raw = ce.name +
 		"(" + (ce.arguments ? ce.arguments.join(",") : "") + ")";
 
+
+	custom.forEach(function(i) {
+		i(node, scope); // result
+	});
+
 	return ce;
 };
 
 Scope.prototype.resolveForStatement = function(node) {
 	var fs = {};
-	var fsScope = new Scope(self);
-	for (var i = 0; i < node.init.declarations.length; i++) {
-		var v = node.init.declarations[i];
-		fsScope.track(v);
-	}
-	test = (function(test) {
-		var t= {left: self.resolveName(test.left),
-				operator: test.operator,
-				right: self.resolveRight(test.right)};
-		t.raw = String(t.left) + " " + t.operator + " " + t.right;
-		return t;
-	})(node.test);
+	/* in ECMAScript 5 for statements do not create their own scope, 
+	 * so create a variable, then track it in current scope */
+	if (node.init && node.init.declarations)
+		for (var i = 0; i < node.init.declarations.length; i++) {
+			var v = node.init.declarations[i];
+			self.track(v);
+		}
+	test = self.resolveRight(node.test);
 	if (flags.verbose)
-		console.log('[TEST]'.blue, pos(node).grey, test.raw);
+		console.log('[TEST]'.blue, pos(node).grey, test);
 
-	traverse(node.body, fsScope);
+	traverse(node.body, scope);
 	return fs;
 };
 
 Scope.prototype.resolveWhileStatement = function(node) {
 	var ws = {};
-
-
+	test = self.resolveRight(node.test);
+	if (flags.verbose)
+		console.log('[TEST]'.blue, pos(node).grey);
+	
+	traverse(node.body, self);
 	return ws;
 };
 
@@ -188,14 +249,16 @@ Scope.prototype.resolveName = function(name) {
 };
 
 Scope.prototype.resolveMemberExpression = function(node) {
-	var b = self.resolveRight(node.property);
-	b = node.computed ? '[' + b + ']' : '.' + b;
+	var i = self.resolveRight(node.property);
+	b = node.computed ? '[' + i + ']' : '.' + i;
 	if (node.object.type == 'MemberExpression') {
 		return self.resolveMemberExpression(node.object) + b;
 	} else if (node.object.type == 'CallExpression') {
 		return self.resolveCallExpression(node.object).raw + b;
-	} else {
-		return node.object.name + b;
+	} else if (node.object.type == 'Identifier') {
+		return self.resolve(node.object.name)[i] || node.object.name + b;
+	} else if (node.object.type == 'Literal') {
+		return false;
 	}
 };
 
@@ -215,13 +278,39 @@ Scope.prototype.resolveFunctionExpression = function(node) {
 		body: node.body
 	};
 
-
 	fe.scope = new Scope(self);
 	for (var i in fe.params) {
 		fe.scope.addVar(fe.params[i], undefined);
 	}
 
+	traverse(fe.body, fe.scope);
+
 	return fe;
+};
+
+Scope.prototype.resolvePath = function(file, cb) {
+	var pkg;
+	if (file.indexOf('./') === 0 || file.indexOf('../') === 0) {
+		if (path.extname(file) == '.json') {
+			// input = JSON.parse(input);
+			// if (Array.isArray(input)) {
+			//	input.forEach(cb);
+			// }
+			return false;
+		}
+	}
+
+	try {
+		console.log(this.file);
+		pkg = resolve.sync(file, {basedir: String(this.file).split('/').slice(0,-1).join('/')});
+		if (file == pkg)
+			return false;
+		else if (pkg)
+			return cb(pkg);
+	} catch (e) {
+		console.error(String(e).red);
+		return false;
+	}
 };
 
 Scope.prototype.addVar = function(name, value) {
@@ -237,9 +326,9 @@ isSink = module.exports.isSink = function(name) {
 	return false;
 };
 
-Scope.prototype.isVariableASource = function(name) {
+Scope.prototype.isSource = function(name) {
 	for (var i in self.sources) {
-		if (name.indexOf(self.sources[i]) === 0) {
+		if (name.search(self.sources[i]) === 0) {
 			return true;
 		}
 	}
@@ -249,16 +338,20 @@ Scope.prototype.isVariableASource = function(name) {
 module.exports.Scope = Scope;
 
 traverse = module.exports.traverse = function(ast, scope) {
-	if (flags.verbose)
-		console.log('[SOURCES]'.red, scope.sources);
+	
 	estraverse.traverse(ast, {
 		enter: function (node, parent) {
-			// console.log(node);
-
+			if (node.type == 'Program' || node.type == 'BlockStatement') {
+				if (flags.verbose) {
+					console.log('Creating new scope'.yellow);
+					console.log('[SOURCES]'.red, scope.sources);
+				}
+			}
 
 			// traverse top level expressions only
 			if (parent && parent.type != 'Program' && parent.type != 'BlockStatement') {
 				this.skip();
+				// return;
 			}
 
 			switch (node.type) {
@@ -270,16 +363,18 @@ traverse = module.exports.traverse = function(ast, scope) {
 					if (!ce.name) {
 						break;
 					}
-					var ceName = scope.resolve(ce.name);
+					var ceName = scope.resolve(ce.name).name || ce.name || scope.resolve(ce.name);
 
 					if (flags.verbose)
 						console.log('[CE]'.blue, pos(node).grey, ceName, ce.raw);
 
-					
-					if (isSink(ceName)) {
-						console.log('[SINK]'.red, pos(node).grey, ceName);
+
+					if (ceName) {
+						if (isSink(ceName)) {
+							console.log('[SINK]'.red, pos(node).grey, ceName);
+						}
 					}
-				
+
 					if (scope.vars[ce.name]) {
 						var func = scope.vars[ce.name];
 						var args = _.object(func.params, ce.arguments);
@@ -288,10 +383,13 @@ traverse = module.exports.traverse = function(ast, scope) {
 					break;
 				case 'AssignmentExpression':
 					var name = self.resolve(self.resolveName(node.left));
-					var value = self.resolve(self.resolveRight(node.right));
+					var value = self.resolve(self.resolveRight(node.right, function(extra) {
+						self.sources.push(name);
+						console.log('[SOURCE]'.red, pos(node).grey, name);
+					}));
 					// if (node.left.type == 'MemberExpression') {
-					// 	name = self.resolveMemberExpression(node.left);
-					// 	name = eval('self.vars.' + name);
+					//	name = self.resolveMemberExpression(node.left);
+					//	name = eval('self.vars.' + name);
 					// }
 					
 					if (self.vars[name]) {
@@ -306,15 +404,15 @@ traverse = module.exports.traverse = function(ast, scope) {
 					var func = scope.resolveFunctionExpression(node);
 					scope.vars[func.name] = func;
 
+
 					if (flags.verbose)
-						console.log('[FUNC]'.blue, pos(node).grey, func.name, func);
-					break;
-				case 'ExpressionStatement':
-					custom.forEach(function(i) {
-						i(node.expression, scope);
-					});
+						console.log('[FUNC]'.blue, pos(node).grey, func.name);
 					break;
 				case 'IfStatement':
+					test = self.resolveRight(node.test);
+					if (flags.verbose)
+						console.log('[TEST]'.blue, pos(node).grey, test);
+
 					traverse(node.consequent, self);
 					break;
 				case 'ForStatement':
@@ -327,18 +425,21 @@ traverse = module.exports.traverse = function(ast, scope) {
 				// console.log(String(node.type).blue);
 				return;
 			}
-
+		},
+		leave: function(node, parent) {
+			if (node.type == 'Program' || node.type == 'BlockStatement') {
+				if (flags.verbose)
+					console.log('leaving scope'.yellow);
+			}
 		}
+
 	});
-	if (flags.verbose)
-		console.log('leaving scope'.yellow);
+
 };
 
-
 astFromFile = module.exports.astFromFile = function(file) {
-	if (!fs.existsSync(__dirname + "/" + file)) {
-		console.error("file does not exist");
-		process.exit(2);
+	if (!fs.existsSync(file)) {
+		return false;
 	}
 
 	var input = fs.readFileSync(file);
@@ -361,9 +462,9 @@ function pos(node) {
 	return node.loc ? String(node.loc.start.line) : "-1";
 }
 
-// flags.verbose = true;
-console.log(process.argv[2].white);
-var scope = new Scope({
-	vars: {'module': {}, 'global': {}, 'process': {}},
-	sources: sources});
+flags.verbose = process.argv.indexOf('-v') != -1 || true;
+console.log(' ---- '.yellow, process.argv[2].white);
+
+var scope = new Scope({sources: sources, file: process.cwd() + '/' + process.argv[2]});
+
 traverse(astFromFile(process.argv[2]), scope);
