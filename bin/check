@@ -26,7 +26,7 @@ console.log(' ---- '.yellow, file.white);
 
 var scope = new check.Scope({
 	sources: sources, sinks: sinks,
-	file: process.cwd() + '/' + file
+	file: file
 });
 
 check.traverse(check.astFromFile(scope.file), scope);
