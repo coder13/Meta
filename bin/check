@@ -7,12 +7,11 @@ var check = require('../check.js'),
 	file = process.argv[2];
 
 if (!file) {
-	// console.error('No file specified');
-	// process.exit();
 	file = 'index.js';
 }
+
 if (!fs.existsSync(file)) {
-	console.error('File does not exist.');
+	console.error(file, 'does not exist.');
 	process.exit();
 }
 
@@ -30,4 +29,4 @@ var scope = new check.Scope({
 	file: file
 });
 
-check.traverse(check.astFromFile(scope.file), scope);
+check.traverse(check.astFromFile(scope.file, argv.o), scope);
