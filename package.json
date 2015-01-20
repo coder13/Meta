@@ -1,8 +1,9 @@
 {
   "name": "Check",
+  "description": "Static analysis tool to scan for vulneralbilites in a nodejs project.",
   "version": "0.2.3",
-  "description": "Static analysis tool to scan for vulneralbilites in a nodejs program.",
-  "main": "check.js",
+  "author": "Caleb",
+  "main": "./bin/check.js",
   "dependencies": {
     "colors": "~0.6.2",
     "esprima": "~1.2.2",
@@ -11,10 +12,13 @@
     "resolve": "*"
   },
   "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "coder13/Meta"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node check.js"
+    "start": "./bin/check"
   },
-  "author": "Caleb",
   "license": "BSD-2-Clause"
 }
