@@ -13,8 +13,8 @@ var colors = require('colors'),
 	hapi = require('hapi');
 	flags = {verbose: false};
 
-sinks = module.exports.sinks = require('./danger.json').sinks;
-sources = module.exports.sources = require('./danger.json').sources;
+var sinks = module.exports.sinks = require('./danger.json').sinks;
+var sources = module.exports.sources = require('./danger.json').sources;
 
 var lookupTable = {};
 
@@ -53,7 +53,8 @@ var custom = [function(node, scope) { // http.get
 
 				var ast = astFromFile(pkg);
 				if (ast) {
-					console.log(' ---- '.yellow, pkg);
+					if (flags.verbose)
+						console.log(' ---- '.yellow, pkg);
 					var newScope = new Scope({sources: sources, file:pkg});
 					traverse(ast, newScope);
 				} else {
@@ -86,15 +87,13 @@ Scope.prototype.track = function(variable) {
 
 	var value = this.resolveExpression(variable.init, function(extra) {
 		scope.sources.push(name);
-		console.log('[SOURCE]'.red, pos(variable).grey, name);
+		console.log('[SOURCE]'.red, flags.recursive?String(scope.file + ':' + pos(variable)).grey:pos(variable).grey, name);
 	});
 
 	scope.vars[name] = value;
 
 	if (flags.verbose && value)
 		console.log('[VAR]'.blue, pos(variable).grey, name, value?value.raw || value:"");
-	// else if (!value)
-	// 	console.log(variable);
 	
 };
 
@@ -133,7 +132,7 @@ Scope.prototype.resolveStatement = function(node) {
 
 			if (ceName) {
 				if (isSink(ceName)) {
-					console.log('[SINK]'.red, pos(node).grey, ceName);
+					console.log('[SINK]'.red, flags.recursive?String(scope.file + ':' + pos(node)).grey:pos(node).grey, ceName);
 				}
 			}
 
@@ -148,8 +147,8 @@ Scope.prototype.resolveStatement = function(node) {
 			var names = assign.names;
 			var value = this.resolve(this.resolveExpression(assign.value, function(extra) {
 				scope.sources.push(names);
-				console.log('[SOURCE]'.red, pos(node).grey, names);
-			}))
+				console.log('[SOURCE]'.red, flags.recursive?String(scope.file + ':' + pos(node)).grey:pos(node).grey, names);
+			}));
 			// if (node.left.type == 'MemberExpression') {
 			//	name = scope.resolveMemberExpression(node.left);
 			//	name = eval('scope.vars.' + name);
@@ -174,7 +173,8 @@ Scope.prototype.resolveStatement = function(node) {
 				console.log('[FUNC]'.blue, pos(node).grey, func.name);
 			break;
 		case 'IfStatement':
-			test = this.resolveExpression(node.test);
+			// test = scope.resolveExpression(node.test);
+			scope.traverse(node.consequent);
 			// if (flags.verbose)
 			// 	console.log('[TEST]'.blue, pos(node).grey, test);
 
@@ -182,18 +182,35 @@ Scope.prototype.resolveStatement = function(node) {
 			break;
 		case 'ForInStatement':
 		case 'ForStatement':
-			var fs = self.resolveForStatement(node);
+			// var fs = self.resolveForStatement(node);
+			traverse(node.body, this);
+			break;
+		case 'TryStatement':
+			traverse(node.block, this);
+			break;
+		case 'SwitchStatement':
+			if (flags.verbose)
+				console.log('[SWITCH]'.blue, pos(node).grey);
+			node.cases.forEach(function (i) {
+				if (flags.verbose)
+					console.log('[CASE]'.blue, pos(node).grey);
+				i.consequent.forEach(function (statement) {
+					scope.resolveStatement(statement.expression || statement);
+				});
+			});
 			break;
 		case 'WhileStatement':
-			var ws = self.resolveWhileStatement(node);
+			traverse(node.body, this);
+			// var ws = self.resolveWhileStatement(node);
 			break;
 		case 'ReturnStatement':
 			if (flags.verbose)
 				console.log('[RETURN]'.blue, pos(node).grey, scope.resolveExpression(node.argument));
-
+			break;
+		case 'BreakStatement':
 			break;
 	default:
-		// console.log(String(node.type).blue);
+		// console.log(String(node.type).blue, pos(node).grey);
 		return;
 	}
 
@@ -250,7 +267,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			}
 
 			if (isSink(ceName)) {
-				console.log('[SINK]'.red, pos(right).grey, ceName);
+				console.log('[SINK]'.red, flags.recursive?String(scope.file + ':' + pos(right)).grey:pos(right).grey, ceName);
 			}
 
 			return ce;
@@ -268,7 +285,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			traverse(fe.body, fe.scope);
 			return fe;
 		default:
-			// console.log(String(right.type).green);
+			// console.log(String(right.type).green, pos(right).grey);
 			return;
 	}
 };
@@ -402,6 +419,20 @@ Scope.prototype.resolveFunctionExpression = function(node) {
 	return fe;
 };
 
+// Traverses an array of statments.
+Scope.prototype.traverse = function(ast) {
+	if (ast.type == 'BlockStatement'){
+		(ast.body || [ast]).forEach(function (node) {
+			if (node.type == 'ExpressionStatement')
+				node = node.expression;
+			scope.resolveStatement(node);
+		});
+	} else {
+		// ast is a single statement so resolve it instead
+		this.resolveStatement(ast.expression || ast);
+	}
+};
+
 Scope.prototype.resolvePath = function(file, cb) {
 	var pkg;
 	if (file.indexOf('./') === 0 || file.indexOf('../') === 0) {
@@ -500,5 +531,4 @@ flags.recursive = process.argv.indexOf('-r') != -1;
 console.log(' ---- '.yellow, process.argv[2].white);
 
 var scope = new Scope({sources: sources, file: process.cwd() + '/' + process.argv[2]});
-
 traverse(astFromFile(process.argv[2]), scope);
