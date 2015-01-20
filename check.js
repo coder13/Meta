@@ -9,9 +9,11 @@ var colors = require('colors'),
 	estraverse = require('estraverse'),
 	_ = require('underscore'),
 	resolve = require('resolve'),
-	path = require('path'),
-	hapi = require('hapi');
+	path = require('path');
 	
+var sinks = require('./danger.json').sinks;
+var sources = require('./danger.json').sources;
+
 var flags = module.exports.flags = {verbose: false, recursive: false};
 var lookupTable = {};
 
@@ -52,7 +54,7 @@ function(node, scope) { // http.get
 				if (ast) {
 					if (flags.verbose)
 						console.log(' ---- '.yellow, pkg);
-					var newScope = new Scope({sources: sources, file:pkg});
+					var newScope = new Scope({sinks: sinks, sources: sources, file:pkg});
 					traverse(ast, newScope);
 				} else {
 					console.log(' ---- '.yellow, String(pkg).red);
@@ -68,8 +70,8 @@ Scope = module.exports.Scope = function(scope) {
 	if (!this.vars.module) this.vars.module = {};
 	if (!this.vars.global) this.vars.global = {};
 	if (!this.vars.process) this.vars.process = {};
-	this.sources = scope.sources||[];
-	this.sinks = scope.sinks||[];
+	this.sources = scope.sources||sources;
+	this.sinks = scope.sinks||sinks;
 	this.file = scope.file;
 };
 
@@ -123,7 +125,7 @@ Scope.prototype.resolveStatement = function(node) {
 			if (flags.verbose)
 				console.log('[CE]'.blue, pos(node).grey, ceName, ce.raw);
 
-			if (ceName) {
+			if (typeof ceName == 'string') {
 				if (this.isSink(ceName)) {
 					console.log('[SINK]'.red, flags.recursive?String(scope.file + ':' + pos(node)).grey:pos(node).grey, ceName);
 				}
@@ -145,7 +147,7 @@ Scope.prototype.resolveStatement = function(node) {
 			//	name = scope.resolveMemberExpression(node.left);
 			//	name = eval('scope.vars.' + name);
 			// }
-			
+
 			names.forEach(function(name) {
 				if (scope.vars[name]) {
 					scope.vars[name] = value;
@@ -168,10 +170,10 @@ Scope.prototype.resolveStatement = function(node) {
 		case 'ForInStatement':
 		case 'ForStatement':
 		case 'WhileStatement':
-			traverse(node.body, this);
+			this.traverse(node.body, this);
 			break;
 		case 'TryStatement':
-			traverse(node.block, this);
+			this.traverse(node.block, this);
 			break;
 		case 'SwitchStatement':
 			if (flags.verbose)
@@ -235,7 +237,6 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 
 			if (flags.verbose)
 				console.log('[CE]'.green, pos(right).grey, ceName, ce.raw);
-
 
 			if (scope.isSource(ceName || ce.name)) {
 				if (isSourceCB)
@@ -417,16 +418,16 @@ Scope.prototype.resolvePath = function(file, cb) {
 		}
 	}
 
-	try {
+	// try {
 		pkg = resolve.sync(file, {basedir: String(this.file).split('/').slice(0,-1).join('/')});
 		if (file == pkg)
 			return false;
 		else if (pkg)
 			return cb(pkg);
-	} catch (e) {
-		console.error(String(e).red);
-		return false;
-	}
+	// } catch (e) {
+	// 	console.error(String(e).red);
+	// 	return false;
+	// }
 };
 
 Scope.prototype.addVar = function(name, value) {
@@ -434,6 +435,8 @@ Scope.prototype.addVar = function(name, value) {
 };
 
 Scope.prototype.isSource = function(name) {
+	if (typeof name != 'string')
+		return false;
 	for (var i in this.sources) {
 		if (name.search(this.sources[i]) === 0) {
 			return true;
@@ -443,6 +446,8 @@ Scope.prototype.isSource = function(name) {
 };
 
 Scope.prototype.isSink = function(name) {
+	if (typeof name != 'string')
+		return false;
 	for (var i in this.sinks) {
 		if (name.search(this.sinks[i]) === 0) {
 			return true;
@@ -454,10 +459,15 @@ Scope.prototype.isSink = function(name) {
 module.exports.Scope = Scope;
 
 traverse = module.exports.traverse = function(ast, scope) {
+	if (!ast) {
+		console.error('An error occured when parsing the file');
+		return;
+	}
 	if (flags.verbose) {
 		console.log('Creating new scope'.yellow);
 		console.log('[SOURCES]'.red, scope.sources);
 	}
+
 
 	ast.body.forEach(function (node) {
 		if (node.type == 'ExpressionStatement')
@@ -477,7 +487,7 @@ astFromFile = module.exports.astFromFile = function(file) {
 
 	var input = fs.readFileSync(file);
 	var ast = esprima.parse(input, {loc: true});
-	fs.writeFileSync("ASTOutput.json", JSON.stringify(esprima.parse(input, {comment: true}), null, '\t'));
+	// fs.writeFileSync("ASTOutput.json", JSON.stringify(esprima.parse(input, {comment: true}), null, '\t'));
 	return ast;
 };
 

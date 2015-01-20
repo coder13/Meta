@@ -1,9 +1,12 @@
 {
   "name": "Check",
   "description": "Static analysis tool to scan for vulneralbilites in a nodejs project.",
-  "version": "0.2.3",
+  "version": "1.0.0",
   "author": "Caleb",
-  "main": "./bin/check.js",
+  "main": "./bin/check",
+  "bin": {
+    "check": "./bin/check"
+  },
   "dependencies": {
     "colors": "~0.6.2",
     "esprima": "~1.2.2",

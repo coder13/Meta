@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 
 var check = require('../check.js'),
+	colors = require('colors'),
 	file = process.argv[2];
+
+if (!file) {
+	// console.error('No file specified');
+	// process.exit();
+	file = 'index.js';
+}
 
 var sinks = module.exports.sinks = require('../danger.json').sinks;
 var sources = module.exports.sources = require('../danger.json').sources;
@@ -9,7 +16,7 @@ var sources = module.exports.sources = require('../danger.json').sources;
 check.flags.verbose = process.argv.indexOf('-v')!=-1 || process.argv.indexOf('-verbose')!=-1;
 check.flags.recursive = process.argv.indexOf('-r')!=-1;
 
-console.log(' ---- '.yellow, process.argv[2].white);
+console.log(' ---- '.yellow, file.white);
 
 var scope = new check.Scope({
 	sources: sources, sinks: sinks,
