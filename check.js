@@ -232,7 +232,10 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			var ce = scope.resolveCallExpression(right);
 			if (!ce.name)
 				return ce;
-			var ceName = scope.resolve(ce.name).name || scope.resolve(ce.name) || ce.name;
+			if (typeof ce.name != 'string')
+				return;
+			
+			var ceName = scope.resolve(ce.name);
 
 			if (flags.verbose)
 				console.log('[CE]'.green, pos(right).grey, ceName, ce.raw);
@@ -479,7 +482,7 @@ traverse = module.exports.traverse = function(ast, scope) {
 		console.log('leaving scope'.yellow);
 };
 
-astFromFile = module.exports.astFromFile = function(file) {
+astFromFile = module.exports.astFromFile = function(file, output) {
 	if (!fs.existsSync(file)) {
 		console.error('File does not exist.');
 		return false;
@@ -487,7 +490,8 @@ astFromFile = module.exports.astFromFile = function(file) {
 
 	var input = fs.readFileSync(file);
 	var ast = esprima.parse(input, {loc: true});
-	// fs.writeFileSync("ASTOutput.json", JSON.stringify(esprima.parse(input, {comment: true}), null, '\t'));
+	if (output)
+		fs.writeFileSync("ASTOutput.json", JSON.stringify(esprima.parse(input, {comment: true}), null, '\t'));
 	return ast;
 };
 

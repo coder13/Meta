@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 var check = require('../check.js'),
+	argv = require('minimist')(process.argv.slice(2)),
 	colors = require('colors'),
 	fs = require('fs'),
 	file = process.argv[2];
@@ -19,8 +20,8 @@ if (!fs.existsSync(file)) {
 var sinks = module.exports.sinks = require('../danger.json').sinks;
 var sources = module.exports.sources = require('../danger.json').sources;
 
-check.flags.verbose = process.argv.indexOf('-v')!=-1 || process.argv.indexOf('-verbose')!=-1;
-check.flags.recursive = process.argv.indexOf('-r')!=-1;
+check.flags.verbose = argv.v;
+check.flags.recursive = argv.r;
 
 console.log(' ---- '.yellow, file.white);
 
