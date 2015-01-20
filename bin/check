@@ -1,0 +1,19 @@
+#!/usr/bin/env node
+
+var check = require('../check.js'),
+	file = process.argv[2];
+
+var sinks = module.exports.sinks = require('../danger.json').sinks;
+var sources = module.exports.sources = require('../danger.json').sources;
+
+check.flags.verbose = process.argv.indexOf('-v')!=-1 || process.argv.indexOf('-verbose')!=-1;
+check.flags.recursive = process.argv.indexOf('-r')!=-1;
+
+console.log(' ---- '.yellow, process.argv[2].white);
+
+var scope = new check.Scope({
+	sources: sources, sinks: sinks,
+	file: process.cwd() + '/' + file
+});
+
+check.traverse(check.astFromFile(scope.file), scope);
