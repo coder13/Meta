@@ -6,7 +6,6 @@ var colors = require('colors'),
 	fs = require('fs'),
 	path = require('path'),
 	esprima = require('esprima'),
-	estraverse = require('estraverse'),
 	_ = require('underscore'),
 	resolve = require('resolve'),
 	path = require('path');
@@ -460,7 +459,7 @@ module.exports.Scope = Scope;
 
 traverse = module.exports.traverse = function(ast, scope) {
 	if (!ast) {
-		console.error('An error occured when parsing the file');
+		console.error('An error occured when parsing the file. The file may not be valid not be valid javascript.');
 		return;
 	}
 	if (flags.verbose) {
@@ -482,6 +481,7 @@ traverse = module.exports.traverse = function(ast, scope) {
 
 astFromFile = module.exports.astFromFile = function(file) {
 	if (!fs.existsSync(file)) {
+		console.error('File does not exist.');
 		return false;
 	}
 

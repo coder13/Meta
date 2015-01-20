@@ -10,7 +10,6 @@
   "dependencies": {
     "colors": "~0.6.2",
     "esprima": "~1.2.2",
-    "estraverse": "~1.5.1",
     "underscore": "~1.7.0", 
     "resolve": "*"
   },

@@ -2,6 +2,7 @@
 
 var check = require('../check.js'),
 	colors = require('colors'),
+	fs = require('fs'),
 	file = process.argv[2];
 
 if (!file) {
@@ -9,6 +10,11 @@ if (!file) {
 	// process.exit();
 	file = 'index.js';
 }
+if (!fs.existsSync(file)) {
+	console.error('File does not exist.');
+	process.exit();
+}
+
 
 var sinks = module.exports.sinks = require('../danger.json').sinks;
 var sources = module.exports.sources = require('../danger.json').sources;
