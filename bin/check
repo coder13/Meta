@@ -1,17 +1,25 @@
 #!/usr/bin/env node
 
-
 var yargs = require('yargs')
 	.usage('Usage: check <file> [options]')
     .describe('v', 'Verbose flag. Will print statements.')
     .describe('r', 'Recrusive flag. Will recursively check required files.')
-    .describe('o', 'Output flag. Will output ast into ASTOutput.js.');
-yargs.check(function(fn) {
-	if (!fn._[0]) {
-		yargs.showHelp();
-		process.exit();
-	}
-});
+    .describe('o', 'Output flag. Will output ast into ASTOutput.js.')
+    .showHelpOnFail(false);
+
+var check = require('../check.js'),
+	colors = require('colors'),
+	fs = require('fs'),
+	path = require('path'),
+	file = fs.realpathSync(process.argv[2]);
+
+if (!file) {
+	yargs.showHelp();
+	process.exit();
+} else if (!fs.existsSync(file)) {
+	console.error(fn._[0], 'doesn\'t exist.');
+	process.exit();
+}
 
 var argv = yargs.argv;
 
@@ -19,18 +27,6 @@ if (argv.h) {
 	yargs.showHelp();
 	process.exit();
 }
-
-var check = require('../check.js'),
-	colors = require('colors'),
-	fs = require('fs'),
-	file = process.argv[2];
-
-
-if (!fs.existsSync(file)) {
-	console.error(file, 'does not exist.');
-	process.exit();
-}
-
 
 var sinks = module.exports.sinks = require('../danger.json').sinks;
 var sources = module.exports.sources = require('../danger.json').sources;
@@ -45,4 +41,5 @@ var scope = new check.Scope({
 	file: file
 });
 
+console.log();
 check.traverse(check.astFromFile(scope.file, argv.o), scope);
