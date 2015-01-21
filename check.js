@@ -234,7 +234,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 				return ce;
 			if (typeof ce.name != 'string')
 				return;
-			
+
 			var ceName = scope.resolve(ce.name);
 
 			if (flags.verbose)
@@ -420,16 +420,16 @@ Scope.prototype.resolvePath = function(file, cb) {
 		}
 	}
 
-	// try {
+	try {
 		pkg = resolve.sync(file, {basedir: String(this.file).split('/').slice(0,-1).join('/')});
 		if (file == pkg)
 			return false;
 		else if (pkg)
 			return cb(pkg);
-	// } catch (e) {
-	// 	console.error(String(e).red);
-	// 	return false;
-	// }
+	} catch (e) {
+		console.error(String(e));
+		return false;
+	}
 };
 
 Scope.prototype.addVar = function(name, value) {
