@@ -1,14 +1,30 @@
 #!/usr/bin/env node
 
+
+var yargs = require('yargs')
+	.usage('Usage: check <file> [options]')
+    .describe('v', 'Verbose flag. Will print statements.')
+    .describe('r', 'Recrusive flag. Will recursively check required files.')
+    .describe('o', 'Output flag. Will output ast into ASTOutput.js.');
+yargs.check(function(fn) {
+	if (!fn._[0]) {
+		yargs.showHelp();
+		process.exit();
+	}
+});
+
+var argv = yargs.argv;
+
+if (argv.h) {
+	yargs.showHelp();
+	process.exit();
+}
+
 var check = require('../check.js'),
-	argv = require('minimist')(process.argv.slice(2)),
 	colors = require('colors'),
 	fs = require('fs'),
 	file = process.argv[2];
 
-if (!file) {
-	file = 'index.js';
-}
 
 if (!fs.existsSync(file)) {
 	console.error(file, 'does not exist.');
