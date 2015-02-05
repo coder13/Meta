@@ -7,17 +7,24 @@ var yargs = require('yargs')
     .describe('o', 'Output flag. Will output ast into ASTOutput.js.')
     .showHelpOnFail(false);
 
-var check = require('../check.js'),
-	colors = require('colors'),
+var check   = require('../check.js'),
+	colors  = require('colors'),
 	fs = require('fs'),
 	path = require('path'),
-	file = fs.realpathSync(process.argv[2]);
+	file = process.argv[2];
 
 if (!file) {
 	yargs.showHelp();
 	process.exit();
-} else if (!fs.existsSync(file)) {
-	console.error(fn._[0], 'doesn\'t exist.');
+}
+
+file = path.resolve(file);
+
+if (!fs.existsSync(file)) {
+	console.error(file, 'doesn\'t exist.');
+	process.exit();
+} else if (!fs.lstatSync(file).isFile()) {
+	console.error(file, 'is not a file.');
 	process.exit();
 }
 
@@ -41,5 +48,16 @@ var scope = new check.Scope({
 	file: file
 });
 
-console.log();
-check.traverse(check.astFromFile(scope.file, argv.o), scope);
+if (argv.j) {
+	scope.log = function(type, node, name, value) {
+		console.dir({
+			type: type,
+			pos: this.file + ':' + check.pos(node),
+			name: name,
+			value: value
+		});
+	};
+}
+
+var ast = check.astFromFile(scope.file, argv.o);
+check.traverse(ast, scope);
