@@ -98,7 +98,7 @@ Scope.prototype.track = function(variable) {
 
 	var value = this.resolveExpression(variable.init, function(extra) {
 		scope.sources.push(name);
-		this.log('[SOURCE]'.red, name, variable);
+		scope.log('[SOURCE]'.red, variable, name);
 	});
 
 	scope.vars[name] = value;
