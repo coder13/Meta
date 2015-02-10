@@ -68,7 +68,8 @@ function(scope, node, ce) { // http.get
 
 				var ast = astFromFile(pkg);
 				if (ast) {
-					console.log(' ---- '.yellow, pkg);
+					if (flags.verbose)
+						console.log(' ---- '.yellow, pkg);
 					var newScope = new Scope({sinks: sinks, sources: sources, file:pkg});
 					traverse(ast, newScope);
 					// scope.log('EXPORTS', ast, newScope.vars.module.exports);
@@ -76,7 +77,8 @@ function(scope, node, ce) { // http.get
 					r = newScope.vars.module.exports;
 
 				} else {
-					console.log(' ---- '.yellow, String(pkg).red);
+					if (flags.verbose)
+						console.log(' ---- '.yellow, String(pkg).red);
 				}
 			}
 		});
