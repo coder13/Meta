@@ -571,14 +571,15 @@ traverse = module.exports.traverse = function(ast, scope) {
 	if (flags.verbose)
 		console.log('leaving scope'.yellow);
 };
-
 astFromFile = module.exports.astFromFile = function(file, output) {
 	if (!fs.existsSync(file)) {
 		console.error('File does not exist.');
 		return false;
 	}
 
-	var input = fs.readFileSync(file);
+	var input = String(fs.readFileSync(file));
+	input = _.filter(input.split('\n'), function(l) {return (l[0] + l[1])!="#!";}).join('\n');
+
 	var ast = esprima.parse(input, {loc: true});
 	if (output)
 		fs.writeFileSync("ASTOutput.json", JSON.stringify(esprima.parse(input, {comment: true}), null, '\t'));
