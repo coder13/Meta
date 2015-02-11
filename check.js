@@ -184,10 +184,16 @@ Scope.prototype.resolveStatement = function(node) {
 			if (flags.verbose)
 				this.log('[CES]', node, ceName, ce.raw);
 
-			if (typeof ceName == 'string') {
-				if (this.isSink(ceName)) {
-					this.log('[SINK]'.red, node, ce.raw, ceName);
-				}
+			if (this.isSink(ceName) && ce.arguments) {
+				ce.arguments.some(function (arg) {
+					var resolved = scope.resolve(arg);
+			
+					if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved)) {
+						scope.log('[SINK]'.red, node, ceName, ce.arguments?ce.arguments:'');
+						return true;
+					}
+					return false;
+				});
 			}
 
 			// if (scope.vars[ce.name]) {
@@ -323,8 +329,17 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 				}
 
 				if (this.isSink(ceName)) {
-					this.log('[SINK]'.red, right, ceName, ce.arguments?ce.arguments:'');
+					ce.arguments.some(function (arg) {
+						var resolved = scope.resolve(arg);
+	
+						if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved)) {
+							scope.log('[SINK]'.red, right, ceName, ce.arguments?ce.arguments:'');
+							return true;
+						}
+						return false;
+					});
 				}
+
 			}
 
 			return ce;
