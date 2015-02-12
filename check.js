@@ -16,12 +16,21 @@ var sources = require('./danger.json').sources;
 var flags = module.exports.flags = {verbose: false, recursive: false};
 var lookupTable = {};
 
+var cs = {
+	'CE': colors.green,
+	'SINK': colors.red,
+	'SOURCE': colors.red,
+	'SOURCES': colors.yellow,
+	'RETURN': colors.red
+};
+
 function log(type, node, name, value) {
 	var p = pos(node);
 	if (flags.recursive)
 		p = this.file + ':' + p;
 
-	console.log(colors.blue(type), colors.grey(p), name, value ? value : '');
+	console.log(cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
+				colors.grey(p), name, value ? value : '');
 }
 
 
@@ -113,7 +122,7 @@ Scope.prototype.track = function(variable) {
 		if (resolved && typeof resolved == 'string') {
 			if (this.isSource(resolved.name || resolved) || this.isSource(value.name || value)) {
 				this.sources.push(name);
-				this.log('[SOURCE]'.red, variable, name, value);
+				this.log('SOURCE', variable, name, value);
 			}
 		}
 	}
@@ -121,7 +130,7 @@ Scope.prototype.track = function(variable) {
 	this.vars[name] = value;
 
 	if (flags.verbose && value)
-		this.log('[VAR]', variable, name, value?value.raw || value:'');
+		this.log('VAR', variable, name, value?value.raw || value:'');
 	
 };
 
@@ -182,14 +191,14 @@ Scope.prototype.resolveStatement = function(node) {
 			var ceName = scope.resolve(ce.name);
 
 			if (flags.verbose)
-				this.log('[CES]', node, ceName, ce.raw);
+				this.log('CES', node, ceName, ce.raw);
 
 			if (this.isSink(ceName) && ce.arguments) {
 				ce.arguments.some(function (arg) {
 					var resolved = scope.resolve(arg);
 			
 					if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved)) {
-						scope.log('[SINK]'.red, node, ceName, ce.arguments?ce.arguments:'');
+						scope.log('SINK', node, ceName, ce.arguments?ce.arguments:'');
 						return true;
 					}
 					return false;
@@ -206,7 +215,7 @@ Scope.prototype.resolveStatement = function(node) {
 			var names = assign.names;
 			var value = this.resolveExpression(assign.value, function() {
 				scope.sources.push(names);
-				scope.log('[SOURCE]'.red, node, names);
+				scope.log('SOURCE'.red, node, names);
 			});
 
 			names.forEach(function(name) {
@@ -223,7 +232,7 @@ Scope.prototype.resolveStatement = function(node) {
 			});
 
 			if (flags.verbose && value)
-				this.log('[ASSIGN]', node, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
+				this.log('ASSIGN', node, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
 			break;
 		case 'FunctionDeclaration':
 			var func = scope.resolveFunctionExpression(node);
@@ -232,7 +241,7 @@ Scope.prototype.resolveStatement = function(node) {
 			traverse(func.body, func.scope);
 
 			if (flags.verbose)
-				this.log('[FUNC]', node, func.name);
+				this.log('FUNC', node, func.name);
 			break;
 		case 'IfStatement':
 			this.resolveExpression(node.test);
@@ -254,10 +263,10 @@ Scope.prototype.resolveStatement = function(node) {
 			break;
 		case 'SwitchStatement':
 			if (flags.verbose)
-				this.log('[SWITCH]', node);
+				this.log('SWITCH', node);
 				node.cases.forEach(function (i) {
 					if (flags.verbose)
-						scope.log('[CASE]', node);
+						scope.log('CASE', node);
 					i.consequent.forEach(function (statement) {
 						scope.resolveStatement(statement.expression || statement);
 					});
@@ -295,7 +304,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 		case 'ArrayExpression':
 			var array = scope.resolveArrayExpression(right);
 			if (flags.verbose)
-				this.log('[ARRAY]', right, array);
+				this.log('ARRAY', right, array);
 			return array;
 		case 'BinaryExpression':
 			climb(right).forEach(function (i) {
@@ -320,7 +329,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			var ceName = scope.resolve(ce.name);
 			
 			if (flags.verbose)
-				this.log('[CE]', right, ceName, ce.raw);
+				this.log('CE', right, ceName, ce.raw);
 
 			if (ceName && typeof ceName == 'string') {
 				if (scope.isSource(ceName)) {
@@ -333,7 +342,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 						var resolved = scope.resolve(arg);
 	
 						if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved)) {
-							scope.log('[SINK]'.red, right, ceName, ce.arguments?ce.arguments:'');
+							scope.log('SINK', right, ceName, ce.arguments?ce.arguments:'');
 							return true;
 						}
 						return false;
@@ -424,7 +433,7 @@ Scope.prototype.resolveForStatement = function(node) {
 		}
 	test = this.resolveExpression(node.test);
 	if (flags.verbose)
-		this.log('[TEST]', node, test);
+		this.log('TEST', node, test);
 
 	traverse(node.body, this);
 	return fs;
@@ -434,7 +443,7 @@ Scope.prototype.resolveWhileStatement = function(node) {
 	var ws = {};
 	test = this.resolveExpression(node.test);
 	if (flags.verbose)
-		this.log('[TEST]', node);
+		this.log('TEST', node);
 	
 	traverse(node.body, this);
 	return ws;
@@ -484,7 +493,7 @@ Scope.prototype.resolveFunctionExpression = function(node) {
 			if (scope.isSource(resolved.name || resolved) || scope.isSource(arg.name || arg)) {
 				if (fe.name)
 					scope.sources.push(fe.name);
-				scope.log('[RETURN]'.red, node, fe.name, arg, resolved);
+				scope.log('RETURN', node, fe.name, arg, resolved);
 			}
 		}
 	});
@@ -572,7 +581,7 @@ traverse = module.exports.traverse = function(ast, scope) {
 	}
 	if (flags.verbose) {
 		console.log('Creating new scope'.yellow);
-		console.log('[SOURCES]'.red, scope.sources);
+		scope.log('SOURCES', scope.sources);
 	}
 
 
