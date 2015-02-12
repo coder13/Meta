@@ -483,7 +483,9 @@ Scope.prototype.resolveFunctionExpression = function(node) {
 		fe.scope.addVar(fe.params[i], undefined);
 	}
 	fe.scope.traverse(fe.body, function(node) {
+		var v = flags.verbose; flags.verbose = false;
 		var arg = scope.resolveExpression(node.argument);
+		flags.verbose = v;
 		var resolved = scope.resolve(arg);
 		if (resolved && typeof resolved == 'string') {
 			if (scope.isSource(resolved.name || resolved) || scope.isSource(arg.name || arg)) {
