@@ -106,6 +106,8 @@ Scope = module.exports.Scope = function(scope) {
 	this.sinks = scope.sinks||sinks;
 	this.file = scope.file;
 	this.log = scope.log || log;
+	this.createNewScope = scope.createNewScope;
+	this.leaveScope = scope.leaveScope;
 
 };
 
@@ -502,6 +504,14 @@ Scope.prototype.resolveFunctionExpression = function(node) {
 // Traverses an array of statments.
 Scope.prototype.traverse = function(ast, returnCB) {
 	var scope = this;
+	if (flags.verbose) {
+		(scope.createNewScope || function() {
+			console.log('Creating new scope'.yellow);
+		})();
+		scope.log('SOURCES', ast, scope.sources);
+	}
+
+
 	if (ast.type == 'BlockStatement'){
 		(ast.body || [ast]).forEach(function (node) {
 			if (node.type == 'ExpressionStatement')
@@ -515,6 +525,11 @@ Scope.prototype.traverse = function(ast, returnCB) {
 		// ast is a single statement so resolve it instead
 		this.resolveStatement(ast.expression || ast);
 	}
+
+	if (flags.verbose)
+		(scope.leaveScope || function () {
+			console.log('leaving scope'.yellow);
+		})();
 };
 
 Scope.prototype.resolvePath = function(file, cb) {
