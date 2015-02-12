@@ -18,6 +18,7 @@ var lookupTable = {};
 
 var cs = {
 	'CE': colors.green,
+	'BE': colors.green,
 	'SINK': colors.red,
 	'SOURCE': colors.red,
 	'SOURCES': colors.yellow,
@@ -145,14 +146,12 @@ Scope.prototype.resolve = function(name) {
 			return eval('this.vars.' + name);
 		}
 	} else {
-		// console.log(121, name, !!get(this.vars, name)?get(this.vars, name):'');
 		if (get(this.vars, name)) {
 			return eval('this.vars.' + name);
 		} else {
 			var s = name.split('.');
 			var r = this.resolve(s.slice(0,-1).join('.'));
 			r = r.raw || r;
-			// console.log(r + '.' + s.slice(-1));
 			return r + '.' + s.slice(-1);
 		}
 	}
@@ -307,16 +306,13 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 				this.log('ARRAY', right, array);
 			return array;
 		case 'BinaryExpression':
-			climb(right).forEach(function (i) {
-				if (i.type == 'Identifier') {
-					if (scope.isSource(i.name)) {
-						if (isSourceCB) {
-							isSourceCB(i.name);
-						}
-					}
-				}
-			});
-			return {};
+			var bin = this.resolveExpression(right.left, isSourceCB) +
+				' ' + right.operator + ' ' +
+				this.resolveExpression(right.right, isSourceCB);
+			// if (flags.verbose)
+			// 	this.log('BE', right, bin);
+
+			return bin;
 		case 'CallExpression':
 			var ce = scope.resolveCallExpression(right);
 			
@@ -580,8 +576,10 @@ traverse = module.exports.traverse = function(ast, scope) {
 		return;
 	}
 	if (flags.verbose) {
-		console.log('Creating new scope'.yellow);
-		scope.log('SOURCES', scope.sources);
+		(scope.createNewScope || function() {
+			console.log('Creating new scope'.yellow);
+		})();
+		scope.log('SOURCES', ast, scope.sources);
 	}
 
 
@@ -592,9 +590,13 @@ traverse = module.exports.traverse = function(ast, scope) {
 		scope.resolveStatement(node);
 	});
 	
-	if (flags.verbose)
-		console.log('leaving scope'.yellow);
+	if (flags.verbose) {
+		(scope.leaveScope || function () {
+			console.log('leaving scope'.yellow);
+		})();
+	}
 };
+
 astFromFile = module.exports.astFromFile = function(file, output) {
 	if (!fs.existsSync(file)) {
 		console.error('File does not exist.');
