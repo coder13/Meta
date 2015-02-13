@@ -46,7 +46,29 @@ function(scope, node, ce) { // http.get
 	var func = ce.arguments[1];
 
 	func.scope.sources = func.scope.sources.concat(func.params[0]);
-	traverse(func.body, func.scope);
+	return true;
+
+}, function(scope, node, ce) {// (new require('hapi').server()).route()
+	if (ce.name.indexOf('require(\'hapi\').Server()') === 0)
+		return false;
+	if (scope.resolve(ce.name).split('.').slice(-1)[0] != 'route')
+		return false;
+
+	if (ce.arguments[0]) {
+		var func;
+		if (ce.arguments[0].config && ce.arguments[0].config.handler) {
+			func = ce.arguments[0].config.handler;
+		} else {
+			func = ce.arguments[0].handler;
+		}
+
+		if (func && func.scope) {
+			func.scope.sources.push(func.params[0]);
+			traverse(func.body, func.scope);
+
+		}
+	}
+
 	return true;
 
 }, function(scope, node, ce) { // require
@@ -66,6 +88,8 @@ function(scope, node, ce) { // http.get
 			return;
 		}
 
+		if (file == 'hapi')
+			return;
 
 		scope.resolvePath(file, function (pkg) {
 			if (!pkg)
@@ -116,21 +140,20 @@ Scope.prototype.track = function(variable) {
 	var scope = this;
 	var name = variable.id.name;
 
-	var value = this.resolveExpression(variable.init);//, function(extra) {
-	//	scope.sources.push(name);
-	//	scope.log('[SOURCE]'.red, variable, name);
-	// });
-	if (value) {
-		var resolved = this.resolve(value);
-		if (resolved && typeof resolved == 'string') {
-			if (this.isSource(resolved.name || resolved) || this.isSource(value.name || value)) {
-				this.sources.push(name);
-				this.log('SOURCE', variable, name, value);
+	var expr = this.resolveExpression(variable.init, function(value) {
+		if (value) {
+			var resolved = scope.resolve(value);
+			if (resolved && typeof resolved == 'string') {
+				if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value)) {
+					scope.sources.push(name);
+					scope.log('SOURCE', variable, name, value);
+				}
 			}
 		}
-	}
 
-	this.vars[name] = value;
+	});
+	
+	this.vars[name] = expr;
 
 	if (flags.verbose && value)
 		this.log('VAR', variable, name, value?value.raw || value:'');
@@ -293,14 +316,10 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 		case 'Identifier':
 			// if variable is being set to a bad variable, mark it too as bad
 
-			var resolved = scope.resolve(right.name);
-			if (resolved && typeof resolved == 'string') {
-				if (scope.isSource(resolved.name)) {
-					if (isSourceCB) {
-						isSourceCB();
-					}
-				}
+			if (isSourceCB) {
+				isSourceCB(right.name);
 			}
+			
 			return right.name;
 		case 'ArrayExpression':
 			var array = scope.resolveArrayExpression(right);
@@ -308,16 +327,20 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 				this.log('ARRAY', right, array);
 			return array;
 		case 'BinaryExpression':
-			var bin = this.resolveExpression(right.left, isSourceCB) +
-				' ' + right.operator + ' ' +
-				this.resolveExpression(right.right, isSourceCB);
+			var bin = {
+				left: this.resolveExpression(right.left, isSourceCB),
+				op: right.operator,
+				right: this.resolveExpression(right.right, isSourceCB)
+			};
 			// if (flags.verbose)
-			// 	this.log('BE', right, bin);
+			//	this.log('BE', right, bin);
 
+			// console.log(bin, this.sources);
 			return bin;
+
+		case 'NewExpression':
 		case 'CallExpression':
 			var ce = scope.resolveCallExpression(right);
-			
 			
 			if (!ce.name)
 				return ce;
@@ -330,10 +353,9 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 				this.log('CE', right, ceName, ce.raw);
 
 			if (ceName && typeof ceName == 'string') {
-				if (scope.isSource(ceName)) {
-					if (isSourceCB)
-						isSourceCB(ceName);
-				}
+				if (isSourceCB)
+					isSourceCB(ceName);
+				
 
 				if (this.isSink(ceName)) {
 					ce.arguments.some(function (arg) {
@@ -352,16 +374,16 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			return ce;
 		case 'MemberExpression':
 			var me = scope.resolveMemberExpression(right);
-			if (typeof me == 'string' && scope.isSource(me)) {
-				if (isSourceCB)
-					isSourceCB();
-			}
+			if (isSourceCB)
+				isSourceCB(me);
+			
 			return me;
 		case 'ObjectExpression': // json objects
 			return scope.resolveObjectExpression(right);
 		case 'FunctionExpression': // functions
 			var fe = scope.resolveFunctionExpression(right);
 			return fe;
+
 	}
 };
 
