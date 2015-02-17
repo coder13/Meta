@@ -15,10 +15,13 @@ var sources = require('./danger.json').sources;
 
 var flags = module.exports.flags = {verbose: false, recursive: false};
 var lookupTable = {};
+var baseFile;
 
 var cs = {
-	'CE': colors.green,
 	'BE': colors.green,
+	'CE': colors.green,
+	'SCE': colors.red,
+	'SCES': colors.red,
 	'SINK': colors.red,
 	'SOURCE': colors.red,
 	'SOURCES': colors.yellow,
@@ -28,7 +31,7 @@ var cs = {
 function log(type, node, name, value) {
 	var p = pos(node);
 	if (flags.recursive)
-		p = this.file + ':' + p;
+		p = path.relative(baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
 
 	console.log(cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
 				colors.grey(p), name, value ? value : '');
@@ -51,7 +54,8 @@ function(scope, node, ce) { // http.get
 }, function(scope, node, ce) {// (new require('hapi').server()).route()
 	if (ce.name.indexOf('require(\'hapi\').Server()') === 0)
 		return false;
-	if (scope.resolve(ce.name).split('.').slice(-1)[0] != 'route')
+	var ceName = scope.resolve(ce.name);
+	if (typeof ceName != "string" || ceName.split('.').slice(-1)[0] != 'route')
 		return false;
 
 	if (ce.arguments[0]) {
@@ -129,6 +133,7 @@ Scope = module.exports.Scope = function(scope) {
 	this.sources = scope.sources||sources;
 	this.sinks = scope.sinks||sinks;
 	this.file = scope.file;
+	if (!baseFile) baseFile = scope.file;
 	this.log = scope.log || log;
 	this.createNewScope = scope.createNewScope;
 	this.leaveScope = scope.leaveScope;
@@ -155,8 +160,8 @@ Scope.prototype.track = function(variable) {
 	
 	this.vars[name] = expr;
 
-	if (flags.verbose && value)
-		this.log('VAR', variable, name, value?value.raw || value:'');
+	if (flags.verbose)
+		this.log('VAR', variable, name);
 	
 };
 
@@ -214,20 +219,28 @@ Scope.prototype.resolveStatement = function(node) {
 
 			var ceName = scope.resolve(ce.name);
 
-			if (flags.verbose)
-				this.log('CES', node, ceName, ce.raw);
+			var t = 'CES';
 
-			if (this.isSink(ceName) && ce.arguments) {
+			if (ce.arguments)
 				ce.arguments.some(function (arg) {
+					if (!arg)
+						return false;
 					var resolved = scope.resolve(arg);
 			
 					if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved)) {
-						scope.log('SINK', node, ceName, ce.arguments?ce.arguments:'');
-						return true;
+						if (scope.isSink(ceName)) {
+							scope.log('SINK', node, ce.raw, ceName);
+							return true;
+						} else {
+							t = 'SCES';
+							return false;
+						}
 					}
 					return false;
 				});
-			}
+
+			if (flags.verbose || t[0] == 'S')
+				this.log(t, node, ce.raw, ceName);
 
 			// if (scope.vars[ce.name]) {
 			//	var func = scope.vars[ce.name];
@@ -237,9 +250,16 @@ Scope.prototype.resolveStatement = function(node) {
 		case 'AssignmentExpression':
 			var assign = scope.resolveAssignment(node);
 			var names = assign.names;
-			var value = this.resolveExpression(assign.value, function() {
-				scope.sources.push(names);
-				scope.log('SOURCE'.red, node, names);
+			var value = this.resolveExpression(assign.value, function(value, isSource) {
+				if (value) {
+					var resolved = scope.resolve(value);
+					if (resolved && typeof resolved == 'string') {
+						if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value) || isSource) {
+							scope.sources.push(names);
+							scope.log('SOURCE', node, names.length==1?names[0]:names, value);
+						}
+					}
+				}
 			});
 
 			names.forEach(function(name) {
@@ -306,27 +326,27 @@ Scope.prototype.resolveStatement = function(node) {
 
 // Resolves variables and returns a simplifed version. 
 Scope.prototype.resolveExpression = function(right, isSourceCB) {
-	if (!right){
+	if (!right) {
 		return;
 	}
 	var scope = this;
 	switch (right.type) {
-		case 'Literal':
+		case 'Literal': // string, number, etc..
 			return right.raw;
-		case 'Identifier':
+		case 'Identifier': // variables, etc...
 			// if variable is being set to a bad variable, mark it too as bad
 
 			if (isSourceCB) {
 				isSourceCB(right.name);
 			}
-			
+
 			return right.name;
 		case 'ArrayExpression':
 			var array = scope.resolveArrayExpression(right);
 			if (flags.verbose)
 				this.log('ARRAY', right, array);
 			return array;
-		case 'BinaryExpression':
+		case 'BinaryExpression': // A + B - C * D
 			var bin = {
 				left: this.resolveExpression(right.left, isSourceCB),
 				op: right.operator,
@@ -338,8 +358,8 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			// console.log(bin, this.sources);
 			return bin;
 
-		case 'NewExpression':
-		case 'CallExpression':
+		case 'NewExpression':  // New
+		case 'CallExpression': //     foo()
 			var ce = scope.resolveCallExpression(right);
 			
 			if (!ce.name)
@@ -348,31 +368,38 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 				return;
 
 			var ceName = scope.resolve(ce.name);
-			
-			if (flags.verbose)
-				this.log('CE', right, ceName, ce.raw);
 
+			var t = 'CE';
 			if (ceName && typeof ceName == 'string') {
-				if (isSourceCB)
-					isSourceCB(ceName);
-				
-
-				if (this.isSink(ceName)) {
+				if (ce.arguments) {
 					ce.arguments.some(function (arg) {
+						if (!arg)
+							return false;
 						var resolved = scope.resolve(arg);
-	
+				
 						if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved)) {
-							scope.log('SINK', right, ceName, ce.arguments?ce.arguments:'');
-							return true;
+							
+							if (scope.isSink(ceName)) {
+								scope.log('SINK', right, ce.raw, ceName);
+								return true;
+							} else {
+								t = 'SCE';
+								return false;
+							}
 						}
 						return false;
 					});
 				}
 
+				if (isSourceCB)
+					isSourceCB(ceName, t == 'SCE');
 			}
 
+			if (flags.verbose || t[0] == 'S')
+				this.log(t, right, ce.raw, ceName);
+
 			return ce;
-		case 'MemberExpression':
+		case 'MemberExpression': // a.b.c.d
 			var me = scope.resolveMemberExpression(right);
 			if (isSourceCB)
 				isSourceCB(me);
@@ -434,9 +461,12 @@ Scope.prototype.resolveCallExpression = function(node) {
 		'(' + (ce.arguments ? ce.arguments.join(',') : '') + ')';
 
 	custom.some(function(i) {
-		var r = i(scope, node, ce); // result
-		if (r)
-			ce = r;
+		var r = false;
+		if (ce.name) {
+			r = i(scope, node, ce); // result
+			if (r)
+				ce = r;
+		}
 		return !!r;
 	});
 	return ce;

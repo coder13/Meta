@@ -58,6 +58,14 @@ if (argv.j) {
 			value: value
 		});
 	};
+	
+	scope.createNewScope = function() {
+		console.log('[');
+	};
+
+	scope.leaveScope = function() {
+		console.log('],');
+	};
 }
 
 var ast = check.astFromFile(scope.file, argv.o);
