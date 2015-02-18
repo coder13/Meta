@@ -1,0 +1,822 @@
+[33m ---- [39m [37mcheck.js[39m
+[33mCreating new scope[39m
+[31m[SOURCES][39m [ 'process.argv',
+  'require\\([\\\'"]fs[\\\'"]\\)\\.\\w+',
+  'eval' ]
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:5',
+  name: 'require(\'colors\')',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:5',
+  name: 'colors',
+  value: 'require(\'colors\')' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:6',
+  name: 'require(\'fs\')',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:6',
+  name: 'fs',
+  value: 'require(\'fs\')' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:7',
+  name: 'require(\'path\')',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:7',
+  name: 'path',
+  value: 'require(\'path\')' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:8',
+  name: 'require(\'esprima\')',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:8',
+  name: 'esprima',
+  value: 'require(\'esprima\')' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:9',
+  name: 'require(\'underscore\')',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:9',
+  name: '_',
+  value: 'require(\'underscore\')' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:10',
+  name: 'require(\'resolve\')',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:10',
+  name: 'resolve',
+  value: 'require(\'resolve\')' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:11',
+  name: 'require(\'path\')',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:11',
+  name: 'path',
+  value: 'require(\'path\')' }
+[Function]
+[Function]
+{ type: '[VAR]',
+  pos: 'check.js:13',
+  name: 'sinks',
+  value: 'require(\'./danger.json\').sinks' }
+[Function]
+[Function]
+{ type: '[VAR]',
+  pos: 'check.js:14',
+  name: 'sources',
+  value: 'require(\'./danger.json\').sources' }
+{ type: '[VAR]',
+  pos: 'check.js:17',
+  name: 'lookupTable',
+  value: {} }
+{ type: '[FUNC]',
+  pos: 'check.js:19',
+  name: 'log',
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:78',
+  name: [ 'undefined.vars' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:79',
+  name: [ 'undefined.vars' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:80',
+  name: [ 'undefined.vars' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:83',
+  name: [ undefined ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:76',
+  name: [ 'module.exports.exports', 'Scope' ],
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:91',
+  name: 'name',
+  value: 'variable.id.id' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:94',
+  name: 'scope.require(\'./danger.json\').sources.require(\'./danger.json\').sources',
+  value: 'scope.require(\'./danger.json\').sources.require(\'./danger.json\').sources(variable.id.id)' }
+[Function]
+[Function]
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:93',
+  name: 'undefined(variable.init,[object Object])',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:93',
+  name: 'value',
+  value: 'undefined(variable.init,[object Object])' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:98',
+  name: [ 'scope.vars.vars' ],
+  value: 'undefined(variable.init,[object Object])' }
+[Function]
+[Function]
+{ type: '[ASSIGN]',
+  pos: 'check.js:89',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:106',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[SWITCH]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+{ type: '[CASE]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:124',
+  name: 'scope.track',
+  value: 'scope.track(i)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:123',
+  name: 'node.declarations.declarations',
+  value: 'node.declarations.declarations([object Object])' }
+{ type: '[CASE]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:129',
+  name: 'scope.resolveCallExpression(node)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:129',
+  name: 'ce',
+  value: 'scope.resolveCallExpression(node)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:134',
+  name: 'scope.[object Object](scope.resolveCallExpression)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:134',
+  name: 'ceName',
+  value: 'scope.[object Object](scope.resolveCallExpression)' }
+[Function]
+[Function]
+[Function]
+[Function]
+{ type: '[CASE]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:151',
+  name: 'scope.resolveAssignment(node)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:151',
+  name: 'assign',
+  value: 'scope.resolveAssignment(node)' }
+{ type: '[VAR]',
+  pos: 'check.js:152',
+  name: 'names',
+  value: 'assign.names' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:154',
+  name: 'scope.require(\'./danger.json\').sources.require(\'./danger.json\').sources',
+  value: 'scope.require(\'./danger.json\').sources.require(\'./danger.json\').sources(assign.names)' }
+[Function]
+[Function]
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:153',
+  name: 'undefined(assign.[object Object],[object Object])',
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:153',
+  name: 'undefined([object Object])',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:153',
+  name: 'value',
+  value: 'undefined([object Object])' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:164',
+  name: [ 'scope.vars.vars' ],
+  value: 'undefined([object Object])' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:162',
+  name: 'assign.names.forEach',
+  value: 'names.forEach([object Object])' }
+[Function]
+[Function]
+{ type: '[CASE]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:172',
+  name: 'scope.resolveFunctionExpression(node)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:172',
+  name: 'func',
+  value: 'scope.resolveFunctionExpression(node)' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:173',
+  name: [ 'scope.vars.vars' ],
+  value: 'scope.resolveFunctionExpression(node)' }
+[Function]
+[Function]
+{ type: '[CASE]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:179',
+  name: 'scope.traverse',
+  value: 'scope.traverse(node.consequent)' }
+{ type: '[CASE]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+{ type: '[CASE]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+{ type: '[CASE]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CASE]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CASE]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:194',
+  name: 'scope.[object Object]',
+  value: 'scope.[object Object](\'[CASE]\',node)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:196',
+  name: 'scope.resolveStatement',
+  value: 'scope.resolveStatement()' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:195',
+  name: 'i.consequent.consequent',
+  value: 'i.consequent.consequent([object Object])' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:192',
+  name: 'node.cases.cases',
+  value: 'node.cases.cases([object Object])' }
+{ type: '[CASE]',
+  pos: 'check.js:121',
+  name: undefined,
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:119',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[SWITCH]',
+  pos: 'check.js:214',
+  name: undefined,
+  value: undefined }
+{ type: '[CASE]',
+  pos: 'check.js:214',
+  name: undefined,
+  value: undefined }
+{ type: '[CASE]',
+  pos: 'check.js:214',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:220',
+  name: 'scope.[object Object](right.name)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:220',
+  name: 'resolved',
+  value: 'scope.[object Object](right.name)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:224',
+  name: 'isSourceCB',
+  value: 'isSourceCB()' }
+{ type: '[CASE]',
+  pos: 'check.js:214',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:229',
+  name: 'scope.resolveArrayExpression(right)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:229',
+  name: 'array',
+  value: 'scope.resolveArrayExpression(right)' }
+[Function]
+[Function]
+{ type: '[CASE]',
+  pos: 'check.js:214',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:238',
+  name: 'isSourceCB',
+  value: 'isSourceCB(i.name)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:234',
+  name: 'climb(right).forEach',
+  value: 'climb(right).forEach([object Object])' }
+{ type: '[CASE]',
+  pos: 'check.js:214',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:244',
+  name: 'scope.resolveCallExpression(right)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:244',
+  name: 'ce',
+  value: 'scope.resolveCallExpression(right)' }
+[Function]
+[Function]
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:255',
+  name: 'scope.[object Object](scope.resolveCallExpression)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:255',
+  name: 'ceName',
+  value: 'scope.[object Object](scope.resolveCallExpression)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:260',
+  name: 'isSourceCB',
+  value: 'isSourceCB([object Object])' }
+[Function]
+[Function]
+{ type: '[CASE]',
+  pos: 'check.js:214',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:269',
+  name: 'scope.resolveMemberExpression(right)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:269',
+  name: 'me',
+  value: 'scope.resolveMemberExpression(right)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:272',
+  name: 'isSourceCB',
+  value: 'isSourceCB()' }
+{ type: '[CASE]',
+  pos: 'check.js:214',
+  name: undefined,
+  value: undefined }
+{ type: '[CASE]',
+  pos: 'check.js:214',
+  name: undefined,
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:278',
+  name: 'scope.resolveFunctionExpression(right)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:278',
+  name: 'fe',
+  value: 'scope.resolveFunctionExpression(right)' }
+[Function]
+[Function]
+{ type: '[ASSIGN]',
+  pos: 'check.js:209',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:287',
+  name: 'undefined(node.right)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:287',
+  name: 'assign',
+  value: 'undefined(node.right)' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:284',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:301',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[VAR]', pos: 'check.js:313', name: 'ce', value: {} }
+[Function]
+[Function]
+{ type: '[ASSIGN]',
+  pos: 'check.js:322',
+  name: [ '_resolveRight' ],
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:325',
+  name: '_.map(node.arguments,_resolveRight)',
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:325',
+  name: [ 'ce.arguments' ],
+  value: '_.map(node.arguments,_resolveRight)' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:327',
+  name: [ 'ce.raw' ],
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:331',
+  name: 'console.[object Object]',
+  value: 'console.[object Object](i)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:332',
+  name: 'i',
+  value: 'i(node,scope)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:330',
+  name: 'custom.forEach',
+  value: 'custom.forEach([object Object])' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:309',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[VAR]', pos: 'check.js:339', name: 'fs', value: {} }
+{ type: '[VAR]',
+  pos: 'check.js:344',
+  name: 'v',
+  value: 'node.init.init.init' }
+[Function]
+[Function]
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:347',
+  name: 'undefined(node.test)',
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:347',
+  name: [ 'test' ],
+  value: 'undefined(node.test)' }
+[Function]
+[Function]
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:351',
+  name: 'traverse',
+  value: 'traverse(node.body,)' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:338',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[VAR]', pos: 'check.js:356', name: 'ws', value: {} }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:357',
+  name: 'undefined(node.test)',
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:357',
+  name: [ 'test' ],
+  value: 'undefined(node.test)' }
+[Function]
+[Function]
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:361',
+  name: 'traverse',
+  value: 'traverse(node.body,)' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:355',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:365',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:374',
+  name: 'undefined(node.property)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:374',
+  name: 'i',
+  value: 'undefined(node.property)' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:373',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[VAR]', pos: 'check.js:389', name: 'obj', value: {} }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:391',
+  name: 'scope.resolveExpression(i.[object Object])',
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:391',
+  name: [ 'obj[i.key.key]' ],
+  value: 'scope.resolveExpression(i.[object Object])' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:390',
+  name: 'node.properties.properties',
+  value: 'node.properties.properties([object Object])' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:387',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:400',
+  name: '_.pluck(node.params,\'name\')',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:398',
+  name: 'fe',
+  value: 
+   { name: undefined,
+     params: 
+      { name: '_.pluck',
+        arguments: [Object],
+        raw: '_.pluck(node.params,\'name\')' },
+     body: 'node.body' } }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:406',
+  name: 'fe.scope.scope',
+  value: 'fe.scope.scope([object Object].params,undefined)' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:397',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:418',
+  name: [ 'node' ],
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:419',
+  name: 'scope.resolveStatement',
+  value: 'scope.resolveStatement(node)' }
+[Function]
+[Function]
+{ type: '[ASSIGN]',
+  pos: 'check.js:413',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+[Function]
+[Function]
+[Function]
+[Function]
+[Function]
+[Function]
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:440',
+  name: 'String().file(\'/\').file(0,).file(\'/\')',
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:440',
+  name: 'resolve.sync(file,[object Object])',
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:440',
+  name: [ 'pkg' ],
+  value: 'resolve.sync(file,[object Object])' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:427',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:452',
+  name: [ 'undefined.vars' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:451',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:455',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:466',
+  name: [ 'Scope.prototype.prototype' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:477',
+  name: [ 'module.exports.exports' ],
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:481',
+  name: 'console.error',
+  value: 'console.error(\'An error occured when parsing the file. The file may not be valid not be valid javascript.\')' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:485',
+  name: 'console.[object Object]',
+  value: 'console.[object Object](false)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:486',
+  name: 'console.[object Object]',
+  value: 'console.[object Object](false,scope.require(\'./danger.json\').sources)' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:492',
+  name: [ 'node' ],
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:494',
+  name: 'scope.resolveStatement',
+  value: 'scope.resolveStatement(node)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:490',
+  name: 'ast.body.body',
+  value: 'ast.body.body([object Object])' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:498',
+  name: 'console.[object Object]',
+  value: 'console.[object Object](false)' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:479',
+  name: [ 'module.exports.exports', 'traverse' ],
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:503',
+  name: 'console.error',
+  value: 'console.error(\'File does not exist.\')' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:507',
+  name: 'fs.readFileSync(file)',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:507',
+  name: 'input',
+  value: 'fs.readFileSync(file)' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:508',
+  name: 'esprima.parse([object Object],[object Object])',
+  value: undefined }
+{ type: '[VAR]',
+  pos: 'check.js:508',
+  name: 'ast',
+  value: 'esprima.parse([object Object],[object Object])' }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:510',
+  name: 'esprima.parse([object Object],[object Object])',
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:510',
+  name: 'JSON.stringify([object Object],null,\'\\t\')',
+  value: undefined }
+[Function]
+[Function]
+{ type: '[CE]',
+  pos: 'check.js:510',
+  name: '[object Object].writeFileSync',
+  value: 'fs.writeFileSync("ASTOutput.json",[object Object])' }
+{ type: '[ASSIGN]',
+  pos: 'check.js:501',
+  name: [ 'module.exports.exports', 'astFromFile' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:515',
+  name: [ 'module.exports.exports', 'climb' ],
+  value: undefined }
+{ type: '[ASSIGN]',
+  pos: 'check.js:524',
+  name: [ 'pos', 'module.exports.exports' ],
+  value: undefined }
+[33mleaving scope[39m

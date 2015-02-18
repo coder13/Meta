@@ -1,4 +1,3 @@
 var b = require('./b.js');
+b.e = eval;
 module.exports.b = b;
-var e = eval;
-b.e(b);

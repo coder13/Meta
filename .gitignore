@@ -1,5 +1,7 @@
 badcode.js
-ASTOuput.js
+ASTOutput.json
+t.js
 analyze.js
 index.js
 traverse.js
+node_modules/

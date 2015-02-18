@@ -37,20 +37,20 @@ function log(type, node, name, value) {
 				colors.grey(p), name, value ? value : '');
 }
 
-
 // Callexpressions
 var custom = module.exports.custom = [
 function(scope, node, ce) { // http.get
-	// assertions
-	if (ce.name != 'require(\'http\').get') {
+	var ceName = scope.resolve(ce.name);
+	if (ceName != 'require(\'http\').get') {
 		return false;
 	}
 	
 	var func = ce.arguments[1];
 
-	func.scope.sources = func.scope.sources.concat(func.params[0]);
+	func.scope.sources.push(func.params[1]);
+	func.scope.log('SOURCE', node, func.params[1]);
+	traverse(func.body, func.scope);
 	return true;
-
 }, function(scope, node, ce) {// (new require('hapi').server()).route()
 	if (ce.name.indexOf('require(\'hapi\').Server()') === 0)
 		return false;
@@ -68,6 +68,7 @@ function(scope, node, ce) { // http.get
 
 		if (func && func.scope) {
 			func.scope.sources.push(func.params[0]);
+			func.scope.log('SOURCE', node, func.params[0]);
 			traverse(func.body, func.scope);
 
 		}
@@ -75,6 +76,18 @@ function(scope, node, ce) { // http.get
 
 	return true;
 
+}, function(scope, node, ce) {// (new require('hapi').server()).route()
+	var ceName = scope.resolve(ce.name);
+	if (ceName != 'require(\'fs\').readFile') {
+		return false;
+	}
+	
+	var func = ce.arguments[2]; // the callback
+
+	func.scope.sources.push(func.params[1]); // data
+	func.scope.log('SOURCE', node, func.params[1]);
+	traverse(func.body, func.scope);
+	return true;
 }, function(scope, node, ce) { // require
 	if (ce.name != 'require')
 		return false;
@@ -92,7 +105,7 @@ function(scope, node, ce) { // http.get
 			return;
 		}
 
-		if (file == 'hapi')
+		if (file == 'hapi' || file.indexOf('hapi') != -1) // just ignore anything hapi
 			return;
 
 		scope.resolvePath(file, function (pkg) {
@@ -162,7 +175,6 @@ Scope.prototype.track = function(variable) {
 
 	if (flags.verbose)
 		this.log('VAR', variable, name);
-	
 };
 
 // returns a value for a variable if one exists
@@ -171,6 +183,7 @@ Scope.prototype.resolve = function(name) {
 		return false;
 	else if (typeof name != 'string')
 		return false;
+	
 	if (name.indexOf('.') == -1) {
 		if (get(this.vars, name)) {
 			return eval('this.vars.' + name);
@@ -185,7 +198,6 @@ Scope.prototype.resolve = function(name) {
 			return r + '.' + s.slice(-1);
 		}
 	}
-
 
 	return name;
 };
@@ -242,10 +254,6 @@ Scope.prototype.resolveStatement = function(node) {
 			if (flags.verbose || t[0] == 'S')
 				this.log(t, node, ce.raw, ceName);
 
-			// if (scope.vars[ce.name]) {
-			//	var func = scope.vars[ce.name];
-			//	var args = _.object(func.params, ce.arguments);
-			// }
 			return ce;
 		case 'AssignmentExpression':
 			var assign = scope.resolveAssignment(node);
@@ -352,12 +360,8 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 				op: right.operator,
 				right: this.resolveExpression(right.right, isSourceCB)
 			};
-			// if (flags.verbose)
-			//	this.log('BE', right, bin);
 
-			// console.log(bin, this.sources);
 			return bin;
-
 		case 'NewExpression':  // New
 		case 'CallExpression': //     foo()
 			var ce = scope.resolveCallExpression(right);
