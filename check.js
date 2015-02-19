@@ -76,6 +76,26 @@ function(scope, node, ce) { // http.get
 
 	return true;
 
+}, function(scope, node, ce) {// (new require('express').Router()).route() && .post()
+	var ceName = scope.resolve(ce.name);
+	if (typeof ceName != "string" || ceName.indexOf('express') == -1)
+		return false;
+	if (['post', 'get'].indexOf(ceName.split('.').slice(-1)[0] != 'post') == -1)
+		return false;
+
+	if (ce.arguments && ce.arguments[1]) {
+		var func = ce.arguments[1];
+
+		if (func && func.scope) {
+			func.scope.sources.push(func.params[0]);
+			func.scope.log('SOURCE', node, func.params[0]);
+			traverse(func.body, func.scope);
+
+		}
+	}
+
+	return true;
+
 }, function(scope, node, ce) {// (new require('hapi').server()).route()
 	var ceName = scope.resolve(ce.name);
 	if (ceName != 'require(\'fs\').readFile') {
@@ -83,10 +103,11 @@ function(scope, node, ce) { // http.get
 	}
 	
 	var func = ce.arguments[2]; // the callback
-
-	func.scope.sources.push(func.params[1]); // data
-	func.scope.log('SOURCE', node, func.params[1]);
-	traverse(func.body, func.scope);
+	if (func) {
+		func.scope.sources.push(func.params[1]); // data
+		func.scope.log('SOURCE', node, func.params[1]);
+		traverse(func.body, func.scope);
+	}
 	return true;
 }, function(scope, node, ce) { // require
 	if (ce.name != 'require')
@@ -105,8 +126,8 @@ function(scope, node, ce) { // http.get
 			return;
 		}
 
-		if (file == 'hapi' || file.indexOf('hapi') != -1) // just ignore anything hapi
-			return;
+		if (['hapi', 'express', 'jade'].indexOf(file) != -1 || file.indexOf('hapi') != -1)
+			return; // just ignore these things
 
 		scope.resolvePath(file, function (pkg) {
 			if (!pkg)
@@ -239,7 +260,11 @@ Scope.prototype.resolveStatement = function(node) {
 						return false;
 					var resolved = scope.resolve(arg);
 			
-					if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved)) {
+					if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved) ||
+						arg.left?_.some(climbBE(arg), function (a) {
+							var r = scope.resolve(a);
+							return scope.isSource(a.name || a) || scope.isSource(r.name || r);}):false) {
+					
 						if (scope.isSink(ceName)) {
 							scope.log('SINK', node, ce.raw, ceName);
 							return true;
@@ -251,8 +276,8 @@ Scope.prototype.resolveStatement = function(node) {
 					return false;
 				});
 
-			if (flags.verbose || t[0] == 'S')
-				this.log(t, node, ce.raw, ceName);
+			if ((flags.verbose || t[0] == 'S') && typeof ceName == 'string')
+				this.log(t, node, ce.raw, typeof ceName == 'string'?ceName:{});
 
 			return ce;
 		case 'AssignmentExpression':
@@ -381,7 +406,10 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 							return false;
 						var resolved = scope.resolve(arg);
 				
-						if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved)) {
+						if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved) ||
+							arg.left?_.some(climbBE(arg), function (a) {
+								var r = scope.resolve(a);
+								return scope.isSource(a.name || a) || scope.isSource(r.name || r);}):false) {
 							
 							if (scope.isSink(ceName)) {
 								scope.log('SINK', right, ce.raw, ceName);
@@ -400,7 +428,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			}
 
 			if (flags.verbose || t[0] == 'S')
-				this.log(t, right, ce.raw, ceName);
+				this.log(t, right, ce.raw, typeof ceName == 'string'?ceName:{});
 
 			return ce;
 		case 'MemberExpression': // a.b.c.d
@@ -478,7 +506,7 @@ Scope.prototype.resolveCallExpression = function(node) {
 
 Scope.prototype.resolveForStatement = function(node) {
 	var fs = {};
-	/* in ECMAScript 5 for statements do not create their own scope, 
+	/* in ECMAScript 5, for statements do not create their own scope, 
 	 * so create a variable, then track it in current scope */
 	if (node.init && node.init.declarations)
 		for (var i = 0; i < node.init.declarations.length; i++) {
@@ -567,7 +595,6 @@ Scope.prototype.traverse = function(ast, returnCB) {
 		scope.log('SOURCES', ast, scope.sources);
 	}
 
-
 	if (ast.type == 'BlockStatement'){
 		(ast.body || [ast]).forEach(function (node) {
 			if (node.type == 'ExpressionStatement')
@@ -592,10 +619,6 @@ Scope.prototype.resolvePath = function(file, cb) {
 	var pkg;
 	if (file.indexOf('./') === 0 || file.indexOf('../') === 0) {
 		if (path.extname(file) == '.json') {
-			// input = JSON.parse(input);
-			// if (Array.isArray(input)) {
-			//	input.forEach(cb);
-			// }
 			return false;
 		}
 	}
@@ -631,9 +654,8 @@ Scope.prototype.isSource = function(name) {
 Scope.prototype.isSink = function(name) {
 	if (typeof name != 'string')
 		return false;
-	// console.log(name);
+
 	for (var i in this.sinks) {
-	// console.log('\t', this.sinks[i], name.search(this.sinks[i]));
 		if (name.search(this.sinks[i]) === 0) {
 			return true;
 		}
@@ -694,16 +716,13 @@ climb = module.exports.climb =  function(ast) {
 	}
 };
 
+climbBE = module.exports.climbBE = function (be, func) {
+	if (!be.left)
+		return be;
+	return[be.left.left?climbBE(be.left):be.left, be.right.left?climbBE(be.right):be.right];
+};
+
 // Convience function to return the line of a node assuming a node has one. 
 module.exports.pos = pos = function(node) {
 	return node.loc ? String(node.loc.start.line) : "-1";
 };
-
-// function get(json, key) {
-// 	keys = key.split('.');
-// 	if (keys.length == 1)
-// 		return json[key];
-// 	else {
-// 		return get(json[keys[0]], keys.slice(1));
-// 	}
-// }
