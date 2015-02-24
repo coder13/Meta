@@ -80,7 +80,7 @@ function(scope, node, ce) { // http.get
 	var ceName = scope.resolve(ce.name);
 	if (typeof ceName != "string" || ceName.indexOf('express') == -1)
 		return false;
-	if (['post', 'get'].indexOf(ceName.split('.').slice(-1)[0] != 'post') == -1)
+	if (['post', 'get'].indexOf(ceName.split('.').slice(-1)[0]) == -1)
 		return false;
 
 	if (ce.arguments && ce.arguments[1]) {
@@ -262,6 +262,7 @@ Scope.prototype.resolveStatement = function(node) {
 			
 					if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved) ||
 						arg.left?_.some(climbBE(arg), function (a) {
+							if (!a) return;
 							var r = scope.resolve(a);
 							return scope.isSource(a.name || a) || scope.isSource(r.name || r);}):false) {
 					
@@ -408,6 +409,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 				
 						if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved) ||
 							arg.left?_.some(climbBE(arg), function (a) {
+								if (!a) return;
 								var r = scope.resolve(a);
 								return scope.isSource(a.name || a) || scope.isSource(r.name || r);}):false) {
 							
@@ -681,7 +683,6 @@ traverse = module.exports.traverse = function(ast, scope) {
 	ast.body.forEach(function (node) {
 		if (node.type == 'ExpressionStatement')
 			node = node.expression;
-		// console.log(node.type);
 		scope.resolveStatement(node);
 	});
 	
@@ -717,7 +718,7 @@ climb = module.exports.climb =  function(ast) {
 };
 
 climbBE = module.exports.climbBE = function (be, func) {
-	if (!be.left)
+	if (!be.left || !be.right)
 		return be;
 	return[be.left.left?climbBE(be.left):be.left, be.right.left?climbBE(be.right):be.right];
 };
