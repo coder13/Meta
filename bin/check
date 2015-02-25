@@ -12,6 +12,7 @@ var check   = require('../check.js'),
 	colors  = require('colors'),
 	fs = require('fs'),
 	path = require('path'),
+	_ = require('underscore'),
 	file = process.argv[2];
 
 if (!file) {
@@ -42,31 +43,64 @@ var sources = module.exports.sources = require('../danger.json').sources;
 check.flags.verbose = argv.v;
 check.flags.recursive = argv.r;
 
-console.log(' ---- '.yellow, file.white);
+if (!argv.j)
+	console.log(' ---- '.yellow, file.white);
 
 var scope = new check.Scope({
 	sources: sources, sinks: sinks,
 	file: file
 });
 
+var reports = [];
+
+
 if (argv.j) {
 	scope.log = function(type, node, name, value) {
-		console.dir({
-			type: type,
-			pos: this.file + ':' + check.pos(node),
-			name: name,
-			value: value
-		});
-	};
-	
-	scope.createNewScope = function() {
-		console.log('[');
+		switch(type) {
+			case 'SOURCE':
+				this.reports.push({
+					source: {
+						name: value,
+						line: this.file + ':' + check.pos(node)
+					}
+				});
+				break;
+			case 'SCES':
+				source = _.filter(this.reports, function(i) {return i.source.name == value;})[0];
+				if (source) {
+					if (!source.chain)
+						source.chain = [];
+					source.chain.push({
+						name: name,
+						value: value,
+						line: this.file + ':' + check.pos(node)
+					})
+				}
+				// else
+				// 	console.log(93, check.pos(node), name, value);
+				break;
+			case 'SINK':
+				source = _.filter(this.reports, function(i) {return i.source.name == value;})[0];
+				if (source)
+					source.sink = {
+						name: name,
+						line: this.file + ':' + check.pos(node)
+					};
+				// else
+				// 	console.log(93, check.pos(node), name, value);
+				break;
+		}
 	};
 
 	scope.leaveScope = function() {
-		console.log('],');
+		var r = _.filter(this.reports, function(i) {return !!i.sink;});
+		// if (r.length !== 0)
+		// 	console.log(r);
+		reports = reports.concat(r);
 	};
 }
 
 var ast = check.astFromFile(scope.file, argv.o);
 check.traverse(ast, scope);
+
+console.log(JSON.stringify(reports));
