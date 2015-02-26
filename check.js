@@ -21,7 +21,11 @@ var fs = require('fs'),
 var sinks = require('./danger.json').sinks;
 var sources = require('./danger.json').sources;
 
-var flags = module.exports.flags = {verbose: false, recursive: false};
+var flags = module.exports.flags = {
+	verbose: false,
+	recursive: false,
+	json: true
+};
 var lookupTable = {};
 var baseFile;
 
@@ -133,9 +137,8 @@ function(scope, node, ce) { // http.get
 			return;
 		}
 
-		// if (['hapi', 'express', 'jade'].indexOf(file) != -1 || file.indexOf('hapi') != -1)
-		// 	return; // just ignore these things
-		// nope, no longer need to do this.
+		if (['hapi', 'express', 'jade'].indexOf(file) != -1 || file.indexOf('hapi') != -1)
+			return; // just ignore these things
 
 		scope.resolvePath(file, function (pkg) {
 			if (!pkg)

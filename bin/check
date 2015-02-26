@@ -2,10 +2,10 @@
 
 var yargs = require('yargs')
 	.usage('Usage: check <file> [options]')
-    .describe('v', 'Verbose flag. Will print all statements.')
-    .describe('r', 'Recrusive flag. Will recursively check required files.')
-    .describe('j', 'Will output as a tree.')
-    .describe('o', 'if -j, will output json into a file: <file>_log. If a file is given, outputs to that it.')
+    .describe('v', 'Verbose flag. Will print all statements. Default is false.')
+    .describe('r', 'Recrusive flag. Will recursively check required files. Default is false.')
+    .describe('j', 'Will output as a tree. Default is true.')
+    .describe('o', 'if -j, will output json into a file: <file>_log. If a file is given, outputs to that it. Default is false.')
     .showHelpOnFail(false);
 
 var check   = require('../check.js'),
@@ -42,7 +42,8 @@ var sources = module.exports.sources = require('../danger.json').sources;
 
 check.flags.verbose = argv.v;
 check.flags.recursive = argv.r;
-check.flags.json = argv.j;
+if (argv.j)
+	check.flags.json = argv.j;
 
 if (!argv.j)
 	console.log(' ---- '.yellow, file.white);
@@ -54,7 +55,7 @@ var scope = new check.Scope({
 
 var reports = [];
 
-if (argv.j) {
+if (check.flags.json) {
 	find = function(r, name) {
 		return _.find(r, function(i) {
 			return name.indexOf(i.source.name) === 0;
@@ -113,7 +114,7 @@ if (argv.j) {
 var ast = check.astFromFile(scope.file);
 check.traverse(ast, scope);
 
-if (argv.j) {
+if (check.flags.json) {
 	if (reports.length !== 0)
 		console.log(require('prettyjson').render(reports));
 	else
