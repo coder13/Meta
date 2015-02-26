@@ -48,7 +48,7 @@ function(scope, node, ce) { // http.get
 	var func = ce.arguments[1];
 
 	func.scope.sources.push(func.params[1]);
-	func.scope.log('SOURCE', node, '', func.params[1]);
+	func.scope.log('SOURCE', node, false, func.params[1]);
 	traverse(func.body, func.scope);
 	return true;
 }, function(scope, node, ce) {// (new require('hapi').server()).route()
@@ -68,7 +68,7 @@ function(scope, node, ce) { // http.get
 
 		if (func && func.scope) {
 			func.scope.sources.push(func.params[0]);
-			func.scope.log('SOURCE', node, '', func.params[0]);
+			func.scope.log('SOURCE', node, false, func.params[0]);
 			traverse(func.body, func.scope);
 
 		}
@@ -88,7 +88,7 @@ function(scope, node, ce) { // http.get
 
 		if (func && func.scope) {
 			func.scope.sources.push(func.params[0]);
-			func.scope.log('SOURCE', node, '', func.params[0]);
+			func.scope.log('SOURCE', node, false, func.params[0]);
 			traverse(func.body, func.scope);
 
 		}
@@ -105,7 +105,7 @@ function(scope, node, ce) { // http.get
 	var func = ce.arguments[2]; // the callback
 	if (func) {
 		func.scope.sources.push(func.params[1]); // data
-		func.scope.log('SOURCE', node, '', func.params[1]);
+		func.scope.log('SOURCE', node, false, func.params[1]);
 		traverse(func.body, func.scope);
 	}
 	return true;
@@ -142,7 +142,13 @@ function(scope, node, ce) { // http.get
 				if (ast) {
 					if (flags.verbose)
 						console.log(' ---- '.yellow, pkg);
-					var newScope = new Scope({sinks: sinks, sources: sources, file:pkg, log:scope.log, leaveScope:scope.leaveScope});
+					var newScope = new Scope({
+						sinks: sinks,
+						sources: sources,
+						file: pkg,
+						log: scope.log,
+						leaveScope: scope.leaveScope
+					});
 					traverse(ast, newScope);
 					// scope.log('EXPORTS', ast, newScope.vars.module.exports);
 
@@ -169,8 +175,8 @@ Scope = module.exports.Scope = function(scope) {
 	this.file = scope.file;
 	if (!baseFile) baseFile = scope.file;
 	this.log = scope.log || log;
-	this.createNewScope = scope.createNewScope;
 	this.leaveScope = scope.leaveScope;
+	this.createNewScope = scope.createNewScope;
 	this.reports = [];
 };
 
@@ -251,18 +257,18 @@ Scope.prototype.resolveStatement = function(node) {
 			}
 
 			var ceName = scope.resolve(ce.name);
-			
+
 			var t = 'CES';
 
 			if (ce.arguments)
 				ce.arguments.some(function (arg) {
-					if (!arg)
+					if (!arg || (arg.scope && arg.params && arg.body))
 						return false;
 					var resolved = scope.resolve(arg);
 					var source = resolved;
-			
+
 					if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved) ||
-						(arg.left?_.some(climbBE(arg), function (a) {
+						(traverseJSON(arg, function (a) {
 							if (!a) return false;
 							var r = scope.resolve(a);
 							if (scope.isSource(a.name || a) || scope.isSource(r.name || r)) {
@@ -270,19 +276,19 @@ Scope.prototype.resolveStatement = function(node) {
 								return true;
 							}
 							return false;
-						}):false)) {
+						}))) {
 
 						// If the function is a sink and there is a source, return as sink;
 						// If not a sink but still has source, return as a Source CES (possible taint)
 						t = (scope.isSink(ce.name) || scope.isSink(ceName))?'SINK':'SCES';
-						scope.log(t, node, ce.name, source);
+						scope.log(t, node, ce.name, source.name || source);
 						return true;
 					}
 					return false;
 				});
 
-			if ((flags.verbose || t[0] == 'S') && typeof ceName == 'string')
-				this.log(t, node, ce.raw, typeof ceName == 'string'?ceName:{});
+			if (flags.verbose && typeof ceName == 'string')
+				this.log(t, node, ce.name, typeof ceName == 'string'?ceName:{});
 
 			return ce;
 		case 'AssignmentExpression':
@@ -384,6 +390,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			if (flags.verbose)
 				this.log('ARRAY', right, array);
 			return array;
+		case 'LogicalExpression':
 		case 'BinaryExpression': // A + B - C * D
 			var bin = {
 				left: this.resolveExpression(right.left, isSourceCB),
@@ -405,13 +412,13 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			if (ceName && typeof ceName == 'string') {
 				if (ce.arguments) {
 					ce.arguments.some(function (arg) {
-						if (!arg)
-							return false;
+					if (!arg || (arg.scope && arg.params && arg.body))
+						return false;
 						var resolved = scope.resolve(arg);
 						var source = resolved;
 
 						if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved) ||
-							arg.left?_.some(climbBE(arg), function (a) {
+							(traverseJSON(arg, function (a) {
 								if (!a) return false;
 								var r = scope.resolve(a);
 								if (scope.isSource(a.name || a) || scope.isSource(r.name || r)) {
@@ -419,15 +426,13 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 									return true;
 								}
 								return false;
-							}):false) {
+							}))) {
 							
-							if (scope.isSource(ce.name) || scope.isSink(ceName)) {
-								scope.log('SINK', right, ce.name, source);
-								return true;
-							} else {
-								t = 'SCE';
-								return false;
-							}
+							
+							// If the function is a sink and there is a source, return as sink;
+							// If not a sink but still has source, return as a Source CES (possible taint)
+							t = (scope.isSink(ce.name) || scope.isSink(ceName))?'SINK':'SCES';
+							scope.log(t, right, ce.name, source);
 						}
 						return false;
 					});
@@ -452,7 +457,9 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 		case 'FunctionExpression': // functions
 			var fe = scope.resolveFunctionExpression(right);
 			return fe;
-
+		default:
+		// console.log(right.type, pos(right));
+			return {};
 	}
 };
 
@@ -597,7 +604,8 @@ Scope.prototype.traverse = function(ast, returnCB) {
 	// 	(scope.leaveScope || function () {
 	// 		console.log('leaving scope'.yellow);
 	// 	})();
-	scope.leaveScope();
+	if (scope.leaveScope)
+		scope.leaveScope();
 };
 
 Scope.prototype.resolvePath = function(file, cb) {
@@ -611,7 +619,8 @@ Scope.prototype.resolvePath = function(file, cb) {
 	try {
 		pkg = resolve.sync(file, {basedir: String(this.file).split('/').slice(0,-1).join('/')});
 	} catch (e) {
-		console.error(String(e));
+		if (flags.verbose)
+			console.error(String(e));
 		return false;
 	}
 
@@ -662,7 +671,6 @@ traverse = module.exports.traverse = function(ast, scope) {
 		scope.log('SOURCES', ast, scope.sources);
 	}
 
-
 	ast.body.forEach(function (node) {
 		if (node.type == 'ExpressionStatement')
 			node = node.expression;
@@ -674,7 +682,8 @@ traverse = module.exports.traverse = function(ast, scope) {
 	// 		console.log('leaving scope'.yellow);
 	// 	})();
 	// }
-	scope.leaveScope();
+	if (scope.leaveScope)
+		scope.leaveScope();
 };
 
 astFromFile = module.exports.astFromFile = function(file, output) {
@@ -711,3 +720,29 @@ climbBE = module.exports.climbBE = function (be, func) {
 module.exports.pos = pos = function(node) {
 	return node.loc ? String(node.loc.start.line) : "-1";
 };
+
+// function traverseJSON(o,func) {
+//     for (var i in o) {
+//         func(o[i]);  
+//         if (o[i] !== null && typeof(o[i])=="object") {
+//             //going on step down in the object tree!!
+//             traverseJSON(o[i],func);
+//         }
+//     }
+// }
+
+function traverseJSON(o,func) {
+	return typeof o == 'object'? _.some(o, function(i) {
+		if (!i)
+			return false;
+		if (typeof i == 'object') {
+			if (!i || (i.scope && i.params && i.body))
+				return false;
+			return traverseJSON(i, func);
+		} else {
+			return func(i);
+		}
+
+		return false;
+	}) : false;
+}

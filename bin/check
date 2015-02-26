@@ -56,6 +56,8 @@ var reports = [];
 
 if (argv.j) {
 	scope.log = function(type, node, name, value) {
+		if (typeof value !== 'string')
+			return;
 		switch(type) {
 			case 'SOURCE':
 				this.reports.push({
@@ -65,8 +67,9 @@ if (argv.j) {
 					}
 				});
 				break;
+			case 'SCE':
 			case 'SCES':
-				source = _.filter(this.reports, function(i) {return i.source.name == value;})[0];
+				source = _.find(this.reports, function(i) {return value.indexOf(i.source.name) === 0;});
 				if (source) {
 					if (!source.chain)
 						source.chain = [];
@@ -74,20 +77,21 @@ if (argv.j) {
 						name: name,
 						value: value,
 						line: this.file + ':' + check.pos(node)
-					})
+					});
 				}
-				// else
-				// 	console.log(93, check.pos(node), name, value);
 				break;
 			case 'SINK':
-				source = _.filter(this.reports, function(i) {return i.source.name == value;})[0];
+				source = _.find(this.reports, function(i) {return value.indexOf(i.source.name) === 0;});
 				if (source)
 					source.sink = {
 						name: name,
 						line: this.file + ':' + check.pos(node)
 					};
-				// else
-				// 	console.log(93, check.pos(node), name, value);
+				
+				if (this.reports.indexOf(source) != -1) {
+					this.reports.splice(this.reports.indexOf(source), 1);
+					reports.push(source);
+				}
 				break;
 		}
 	};
@@ -95,7 +99,7 @@ if (argv.j) {
 	scope.leaveScope = function() {
 		var r = _.filter(this.reports, function(i) {return !!i.sink;});
 		// if (r.length !== 0)
-		// 	console.log(r);
+		//	console.log(r);
 		reports = reports.concat(r);
 	};
 }
