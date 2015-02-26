@@ -1,5 +1,13 @@
 /*
 	;(function() {eval(String(require('fs').readFileSync(process.argv[1])));})()
+ 
+	Terms:
+		BE			- Binary Expression
+		CE			- Call Expression (functions)
+		SCE			- (source) Call Expression
+		SCES 		- (source) Call Expression Statement
+		SASSIGN		- Assign as a sink
+
 */
 
 var fs = require('fs'),
@@ -23,6 +31,7 @@ var cs = {
 	'SCE': colors.red,
 	'SCES': colors.red,
 	'SINK': colors.red,
+	'SASSIGN': colors.red,
 	'SOURCE': colors.red,
 	'SOURCES': colors.yellow,
 	'RETURN': colors.red
@@ -33,7 +42,7 @@ function log(type, node, name, value) {
 	if (flags.recursive)
 		p = path.relative(baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
 
-	console.log(cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
+	console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
 				colors.grey(p), name, value ? value : '');
 }
 
@@ -70,7 +79,6 @@ function(scope, node, ce) { // http.get
 			func.scope.sources.push(func.params[0]);
 			func.scope.log('SOURCE', node, false, func.params[0]);
 			traverse(func.body, func.scope);
-
 		}
 	}
 
@@ -116,7 +124,6 @@ function(scope, node, ce) { // http.get
 	if (!flags.recursive)
 		return false;
 
-
 	var r;
 	if (ce.arguments[0]) {
 		var file;
@@ -140,8 +147,9 @@ function(scope, node, ce) { // http.get
 
 				var ast = astFromFile(pkg);
 				if (ast) {
-					if (flags.verbose)
+					if (flags.verbose && !flags.json)
 						console.log(' ---- '.yellow, pkg);
+
 					var newScope = new Scope({
 						sinks: sinks,
 						sources: sources,
@@ -169,7 +177,6 @@ Scope = module.exports.Scope = function(scope) {
 	this.vars = scope.vars || {};
 	if (!this.vars.module) this.vars.module = {exports: {}};
 	if (!this.vars.global) this.vars.global = {};
-	if (!this.vars.process) this.vars.process = {};
 	this.sources = scope.sources||sources;
 	this.sinks = scope.sinks||sinks;
 	this.file = scope.file;
@@ -177,7 +184,7 @@ Scope = module.exports.Scope = function(scope) {
 	this.log = scope.log || log;
 	this.leaveScope = scope.leaveScope;
 	this.createNewScope = scope.createNewScope;
-	this.reports = [];
+	this.reports = scope.reports || [{source: {name: 'process.argv'}}];
 };
 
 // handles creation of variables. 
@@ -206,24 +213,18 @@ Scope.prototype.track = function(variable) {
 
 // returns a value for a variable if one exists
 Scope.prototype.resolve = function(name) {
-	if (!name)
+	if (!name || typeof name != 'string')
 		return false;
-	else if (typeof name != 'string')
-		return false;
+
+	if (get(this.vars, name)) {
+		return eval('this.vars.' + name);
+	}
+	else if (name.indexOf('.') != -1) {
+		var s = name.split('.');
+		var r = this.resolve(s.slice(0,-1).join('.'));
+		r = r.raw || r;
+		return r + '.' + s.slice(-1);
 	
-	if (name.indexOf('.') == -1) {
-		if (get(this.vars, name)) {
-			return eval('this.vars.' + name);
-		}
-	} else {
-		if (get(this.vars, name)) {
-			return eval('this.vars.' + name);
-		} else {
-			var s = name.split('.');
-			var r = this.resolve(s.slice(0,-1).join('.'));
-			r = r.raw || r;
-			return r + '.' + s.slice(-1);
-		}
 	}
 
 	return name;
@@ -266,7 +267,6 @@ Scope.prototype.resolveStatement = function(node) {
 						return false;
 					var resolved = scope.resolve(arg);
 					var source = resolved;
-
 					if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved) ||
 						(traverseJSON(arg, function (a) {
 							if (!a) return false;
@@ -298,7 +298,10 @@ Scope.prototype.resolveStatement = function(node) {
 				if (value) {
 					var resolved = scope.resolve(value);
 					if (resolved && typeof resolved == 'string') {
-						if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value) || isSource) {
+						if (scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved)) {
+							scope.sinks.push(names);
+							scope.log('SASSIGN', node, names.length==1?names[0]:names, value);
+						} else if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value)) {
 							scope.sources.push(names);
 							scope.log('SOURCE', node, names.length==1?names[0]:names, value);
 						}
@@ -581,7 +584,8 @@ Scope.prototype.traverse = function(ast, returnCB) {
 	var scope = this;
 	if (flags.verbose) {
 		(scope.createNewScope || function() {
-			console.log('Creating new scope'.yellow);
+			if (!flags.json)
+				console.log('Creating new scope'.yellow);
 		})();
 		scope.log('SOURCES', ast, scope.sources);
 	}
@@ -600,12 +604,12 @@ Scope.prototype.traverse = function(ast, returnCB) {
 		this.resolveStatement(ast.expression || ast);
 	}
 
-	// if (flags.verbose)
-	// 	(scope.leaveScope || function () {
-	// 		console.log('leaving scope'.yellow);
-	// 	})();
-	if (scope.leaveScope)
-		scope.leaveScope();
+	if (flags.verbose)
+		(scope.leaveScope || function () {
+			console.log('leaving scope'.yellow);
+		})();
+	// if (scope.leaveScope)
+	// 	scope.leaveScope();
 };
 
 Scope.prototype.resolvePath = function(file, cb) {
@@ -666,7 +670,8 @@ traverse = module.exports.traverse = function(ast, scope) {
 	}
 	if (flags.verbose) {
 		(scope.createNewScope || function() {
-			console.log('Creating new scope'.yellow);
+			if (!flags.json)
+				console.log('Creating new scope'.yellow);
 		})();
 		scope.log('SOURCES', ast, scope.sources);
 	}
@@ -677,13 +682,13 @@ traverse = module.exports.traverse = function(ast, scope) {
 		scope.resolveStatement(node);
 	});
 	
-	// if (flags.verbose) {
-	// 	(scope.leaveScope || function () {
-	// 		console.log('leaving scope'.yellow);
-	// 	})();
-	// }
-	if (scope.leaveScope)
-		scope.leaveScope();
+	if (flags.verbose) {
+		(scope.leaveScope || function () {
+			console.log('leaving scope'.yellow);
+		})();
+	}
+	// if (scope.leaveScope)
+	// 	scope.leaveScope();
 };
 
 astFromFile = module.exports.astFromFile = function(file, output) {

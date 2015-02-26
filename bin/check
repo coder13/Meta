@@ -42,6 +42,7 @@ var sources = module.exports.sources = require('../danger.json').sources;
 
 check.flags.verbose = argv.v;
 check.flags.recursive = argv.r;
+check.flags.json = argv.j;
 
 if (!argv.j)
 	console.log(' ---- '.yellow, file.white);
@@ -80,6 +81,8 @@ if (argv.j) {
 					});
 				}
 				break;
+			case 'SASSIGN':
+				
 			case 'SINK':
 				source = _.find(this.reports, function(i) {return value.indexOf(i.source.name) === 0;});
 				if (source)
@@ -96,6 +99,8 @@ if (argv.j) {
 		}
 	};
 
+	scope.createNewScope = function () {};
+
 	scope.leaveScope = function() {
 		var r = _.filter(this.reports, function(i) {return !!i.sink;});
 		// if (r.length !== 0)
@@ -107,4 +112,4 @@ if (argv.j) {
 var ast = check.astFromFile(scope.file, argv.o);
 check.traverse(ast, scope);
 
-console.log(JSON.stringify(reports));
+console.log(require('prettyjson').render(reports));
