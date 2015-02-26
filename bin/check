@@ -2,10 +2,10 @@
 
 var yargs = require('yargs')
 	.usage('Usage: check <file> [options]')
-    .describe('v', 'Verbose flag. Will print statements.')
+    .describe('v', 'Verbose flag. Will print all statements.')
     .describe('r', 'Recrusive flag. Will recursively check required files.')
-    .describe('o', 'Output flag. Will output ast into ASTOutput.js.')
-    .describe('j', 'Will output <json class=""></json>')
+    .describe('j', 'Will output as a tree.')
+    .describe('o', 'if -j, will output json into a file: <file>_log. If a file is given, outputs to that it.')
     .showHelpOnFail(false);
 
 var check   = require('../check.js'),
@@ -54,8 +54,16 @@ var scope = new check.Scope({
 
 var reports = [];
 
-
 if (argv.j) {
+	find = function(r, name) {
+		return _.find(r, function(i) {
+			return name.indexOf(i.source.name) === 0;
+		});
+	};
+
+	/* Creates a report for a source. 
+		Keeps adding possible taints untill the source lands into a sink.
+	*/
 	scope.log = function(type, node, name, value) {
 		if (typeof value !== 'string')
 			return;
@@ -69,8 +77,8 @@ if (argv.j) {
 				});
 				break;
 			case 'SCE':
-			case 'SCES':
-				source = _.find(this.reports, function(i) {return value.indexOf(i.source.name) === 0;});
+			case 'SCES': // Possible taint: call expression containing the source.
+				source = find(this.reports, value);
 				if (source) {
 					if (!source.chain)
 						source.chain = [];
@@ -82,15 +90,17 @@ if (argv.j) {
 				}
 				break;
 			case 'SASSIGN':
-				
+				break;
 			case 'SINK':
-				source = _.find(this.reports, function(i) {return value.indexOf(i.source.name) === 0;});
+				source = find(this.reports, value);
 				if (source)
 					source.sink = {
 						name: name,
 						line: this.file + ':' + check.pos(node)
 					};
 				
+
+				// Flush the report. After finding the sink, we don't want to track it anymore.
 				if (this.reports.indexOf(source) != -1) {
 					this.reports.splice(this.reports.indexOf(source), 1);
 					reports.push(source);
@@ -98,18 +108,14 @@ if (argv.j) {
 				break;
 		}
 	};
-
-	scope.createNewScope = function () {};
-
-	scope.leaveScope = function() {
-		var r = _.filter(this.reports, function(i) {return !!i.sink;});
-		// if (r.length !== 0)
-		//	console.log(r);
-		reports = reports.concat(r);
-	};
 }
 
-var ast = check.astFromFile(scope.file, argv.o);
+var ast = check.astFromFile(scope.file);
 check.traverse(ast, scope);
 
-console.log(require('prettyjson').render(reports));
+if (argv.j) {
+	if (reports.length !== 0)
+		console.log(require('prettyjson').render(reports));
+	else
+		console.log(colors.green('No vulneralbities found'));
+}

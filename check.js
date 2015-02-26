@@ -133,8 +133,9 @@ function(scope, node, ce) { // http.get
 			return;
 		}
 
-		if (['hapi', 'express', 'jade'].indexOf(file) != -1 || file.indexOf('hapi') != -1)
-			return; // just ignore these things
+		// if (['hapi', 'express', 'jade'].indexOf(file) != -1 || file.indexOf('hapi') != -1)
+		// 	return; // just ignore these things
+		// nope, no longer need to do this.
 
 		scope.resolvePath(file, function (pkg) {
 			if (!pkg)
@@ -298,7 +299,8 @@ Scope.prototype.resolveStatement = function(node) {
 				if (value) {
 					var resolved = scope.resolve(value);
 					if (resolved && typeof resolved == 'string') {
-						if (scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved)) {
+						if (node.right.type == 'Identifier' &&
+							(scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved))) {
 							scope.sinks.push(names);
 							scope.log('SASSIGN', node, names.length==1?names[0]:names, value);
 						} else if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value)) {
@@ -312,9 +314,9 @@ Scope.prototype.resolveStatement = function(node) {
 			names.forEach(function(name) {
 				try {
 					if (node.left.type == 'MemberExpression') {
-						if (scope.vars[name] || scope.vars[name.split('.').slice(-1).join('.')])
-							eval('scope.vars.' + name + ' = ' + JSON.stringify(value));
-						else
+						// if (scope.vars[name] || scope.vars[name.split('.').slice(-1).join('.')])
+						// 	eval('scope.vars.' + name + ' = ' + JSON.stringify(value));
+						// else
 							eval('scope.vars.' + name + ' = ' + JSON.stringify(value));
 					}
 				} catch (e) {
@@ -340,13 +342,13 @@ Scope.prototype.resolveStatement = function(node) {
 			if (node.alternate)
 				scope.traverse(node.alternate);
 			break;
-		case 'ForInStatement':
-		case 'ForStatement':
-		case 'WhileStatement':
-		case 'CatchClause':
+		case 'ForInStatement': // These
+		case 'ForStatement':   // are
+		case 'WhileStatement': // all
+		case 'CatchClause':    // the same
 			this.traverse(node.body);
 			break;
-		case 'TryStatement':
+		case 'TryStatement': // cept this
 			this.traverse(node.block);
 			node.handlers.forEach(function (h) {
 				scope.resolveStatement(h);
@@ -382,17 +384,23 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			return right.raw;
 		case 'Identifier': // variables, etc...
 			// if variable is being set to a bad variable, mark it too as bad
-
 			if (isSourceCB) {
 				isSourceCB(right.name);
 			}
-
 			return right.name;
+		case 'ThisExpression':
+			return {};
+		case 'UpdateExpression':
+		case 'UnaryExpression':
+			var arg = this.resolveExpression(right.argument, isSourceCB);
+			// console.log(right.operator, arg);
+			return {};
 		case 'ArrayExpression':
 			var array = scope.resolveArrayExpression(right);
 			if (flags.verbose)
 				this.log('ARRAY', right, array);
 			return array;
+		case 'ConditionalExpression':
 		case 'LogicalExpression':
 		case 'BinaryExpression': // A + B - C * D
 			var bin = {
@@ -460,10 +468,45 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 		case 'FunctionExpression': // functions
 			var fe = scope.resolveFunctionExpression(right);
 			return fe;
-		default:
-		// console.log(right.type, pos(right));
-			return {};
+		case 'AssignmentExpression':
+			var assign = scope.resolveAssignment(right);
+			var names = assign.names;
+			var value = this.resolveExpression(assign.value, function(value, isSource) {
+				if (value) {
+					var resolved = scope.resolve(value);
+					if (resolved && typeof resolved == 'string') {
+						if (scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved)) {
+							scope.sinks.push(names);
+							scope.log('SASSIGN', right, names.length==1?names[0]:names, value);
+						} else if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value)) {
+							scope.sources.push(names);
+							scope.log('SOURCE', right, names.length==1?names[0]:names, value);
+						}
+					}
+				}
+			});
+
+			names.forEach(function(name) {
+				try {
+					if (right.left.type == 'MemberExpression') {
+						if (scope.vars[name] || scope.vars[name.split('.').slice(-1).join('.')])
+							eval('scope.vars.' + name + ' = ' + JSON.stringify(value));
+						else
+							eval('scope.vars.' + name + ' = ' + JSON.stringify(value));
+					}
+				} catch (e) {
+				
+				}
+			});
+
+			if (flags.verbose && value)
+				this.log('ASSIGN', right, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
+			break;
+		// default:
+		// 	console.log(right.type, this.file + ':' + pos(right));
+		// 	return {};
 	}
+	return {};
 };
 
 Scope.prototype.resolveAssignment = function(node) {
@@ -493,8 +536,7 @@ Scope.prototype.resolveArrayExpression = function(node, isSourceCB) {
 Scope.prototype.resolveCallExpression = function(node) {
 	if (!node) // node can sometimes be undefined. Find out why later.
 		return;
-	var scope = this,
-		ce = {};
+	var scope = this, ce = {};
 	
 	if (node.callee.type == 'FunctionExpression') {
 		this.resolveExpression(node.callee);
@@ -508,8 +550,7 @@ Scope.prototype.resolveCallExpression = function(node) {
 		};
 		ce.arguments = _.map(node.arguments, _resolveRight);
 	}
-	ce.raw = ce.name +
-		'(' + (ce.arguments ? ce.arguments.join(',') : '') + ')';
+	ce.raw = ce.name + '(' + (ce.arguments ? ce.arguments.join(','):'') + ')';
 
 	custom.some(function(i) {
 		var r = false;
@@ -608,8 +649,6 @@ Scope.prototype.traverse = function(ast, returnCB) {
 		(scope.leaveScope || function () {
 			console.log('leaving scope'.yellow);
 		})();
-	// if (scope.leaveScope)
-	// 	scope.leaveScope();
 };
 
 Scope.prototype.resolvePath = function(file, cb) {
@@ -668,6 +707,7 @@ traverse = module.exports.traverse = function(ast, scope) {
 		console.error('An error occured when parsing the file. The file may not be valid not be valid javascript.');
 		return;
 	}
+
 	if (flags.verbose) {
 		(scope.createNewScope || function() {
 			if (!flags.json)
@@ -687,11 +727,9 @@ traverse = module.exports.traverse = function(ast, scope) {
 			console.log('leaving scope'.yellow);
 		})();
 	}
-	// if (scope.leaveScope)
-	// 	scope.leaveScope();
 };
 
-astFromFile = module.exports.astFromFile = function(file, output) {
+astFromFile = module.exports.astFromFile = function(file) {
 	if (!fs.existsSync(file)) {
 		console.error('File does not exist.');
 		return false;
@@ -701,13 +739,17 @@ astFromFile = module.exports.astFromFile = function(file, output) {
 	input = _.filter(input.split('\n'), function(l) {return (l[0] + l[1])!="#!";}).join('\n');
 
 	var ast = esprima.parse(input, {loc: true});
-	if (output)
-		fs.writeFileSync("ASTOutput.json", JSON.stringify(esprima.parse(input, {comment: true}), null, '\t'));
 	return ast;
 };
 
+// Convience function to return the line of a node assuming a node has one. 
+pos = module.exports.pos = function(node) {
+	return node.loc ? String(node.loc.start.line) : "-1";
+};
+
 // Returns an array from a tree of BinaryExpressions
-climb = module.exports.climb =  function(ast) {
+// traverseJSON will also work but will report the operators too.
+climb = function(ast) {
 	if (ast.type == 'BinaryExpression') {
 		return climb(ast.left).concat(climb(ast.right));
 	} else {
@@ -715,28 +757,8 @@ climb = module.exports.climb =  function(ast) {
 	}
 };
 
-climbBE = module.exports.climbBE = function (be, func) {
-	if (!be.left || !be.right)
-		return be;
-	return[be.left.left?climbBE(be.left):be.left, be.right.left?climbBE(be.right):be.right];
-};
-
-// Convience function to return the line of a node assuming a node has one. 
-module.exports.pos = pos = function(node) {
-	return node.loc ? String(node.loc.start.line) : "-1";
-};
-
-// function traverseJSON(o,func) {
-//     for (var i in o) {
-//         func(o[i]);  
-//         if (o[i] !== null && typeof(o[i])=="object") {
-//             //going on step down in the object tree!!
-//             traverseJSON(o[i],func);
-//         }
-//     }
-// }
-
-function traverseJSON(o,func) {
+// Traverses a json object and runs the callback on any non-object.
+traverseJSON = function(o,func) {
 	return typeof o == 'object'? _.some(o, function(i) {
 		if (!i)
 			return false;
