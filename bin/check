@@ -8,7 +8,8 @@ var yargs = require('yargs')
     .describe('o', 'if -j, will output json into a file: <file>_log. If a file is given, outputs to that it. Default is false.')
     .showHelpOnFail(false);
 
-var check   = require('../check.js'),
+var check = require('../check.js'),
+	Scope = require('../scope.js'),
 	colors  = require('colors'),
 	fs = require('fs'),
 	path = require('path'),
@@ -37,9 +38,6 @@ if (argv.h) {
 	process.exit();
 }
 
-var sinks = module.exports.sinks = require('../danger.json').sinks;
-var sources = module.exports.sources = require('../danger.json').sources;
-
 check.flags.verbose = argv.v;
 check.flags.recursive = argv.r;
 if (argv.j)
@@ -48,75 +46,16 @@ if (argv.j)
 if (!argv.j)
 	console.log(' ---- '.yellow, file.white);
 
-var scope = new check.Scope({
-	sources: sources, sinks: sinks,
+var scope = new Scope({
 	file: file
 });
-
-var reports = [];
-
-if (check.flags.json) {
-	find = function(r, name) {
-		return _.find(r, function(i) {
-			return name.indexOf(i.source.name) === 0;
-		});
-	};
-
-	/* Creates a report for a source. 
-		Keeps adding possible taints untill the source lands into a sink.
-	*/
-	scope.log = function(type, node, name, value) {
-		if (typeof value !== 'string')
-			return;
-		switch(type) {
-			case 'SOURCE':
-				this.reports.push({
-					source: {
-						name: value,
-						line: this.file + ':' + check.pos(node)
-					}
-				});
-				break;
-			case 'SCE':
-			case 'SCES': // Possible taint: call expression containing the source.
-				source = find(this.reports, value);
-				if (source) {
-					if (!source.chain)
-						source.chain = [];
-					source.chain.push({
-						name: name,
-						value: value,
-						line: this.file + ':' + check.pos(node)
-					});
-				}
-				break;
-			case 'SASSIGN':
-				break;
-			case 'SINK':
-				source = find(this.reports, value);
-				if (source)
-					source.sink = {
-						name: name,
-						line: this.file + ':' + check.pos(node)
-					};
-				
-
-				// Flush the report. After finding the sink, we don't want to track it anymore.
-				if (this.reports.indexOf(source) != -1) {
-					this.reports.splice(this.reports.indexOf(source), 1);
-					reports.push(source);
-				}
-				break;
-		}
-	};
-}
 
 var ast = check.astFromFile(scope.file);
 check.traverse(ast, scope);
 
 if (check.flags.json) {
-	if (reports.length !== 0)
-		console.log(require('prettyjson').render(reports));
+	if (check.reports.length !== 0)
+		console.log(require('prettyjson').render(check.reports));
 	else
 		console.log(colors.green('No vulneralbities found'));
 }
