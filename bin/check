@@ -5,8 +5,10 @@ var yargs = require('yargs')
     .describe('v', 'Verbose flag. Will print all statements. Default is false.')
     .describe('r', 'Recrusive flag. Will recursively check required files. Default is false.')
     .describe('j', 'Will output as a tree. Default is true.')
-    .describe('o', 'if -j, will output json into a file: <file>_log. If a file is given, outputs to that it. Default is false.')
+    .describe('d', 'debug flag. Will output the file and line of the code being checked when an error is thrown')
+    .alias('d', 'debug')
     .showHelpOnFail(false);
+    // .describe('o', 'if -j, will output json into a file: <file>_log. If a file is given, outputs to that it. Default is false.')
 
 var colors  = require('colors'),
 	fs = require('fs'),
@@ -37,7 +39,12 @@ if (argv.h) {
 }
 
 var check = require('../check.js');
-check.setFlags({verbose: argv.v, recursive: argv.r, json: argv.j});
+check.setFlags({
+	verbose: argv.v,
+	recursive: argv.r,
+	json: argv.j,
+	debug: argv.d
+});
 var Scope = check.Scope;
 
 if (!argv.j)
