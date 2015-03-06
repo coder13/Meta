@@ -58,16 +58,17 @@ function(scope, node, ce) { // http.get
 
 	return true;
 
-}, function(scope, node, ce) {// (new require('hapi').server()).route()
+}, function(scope, node, ce) {// require('fs').readFile
 	var ceName = scope.resolve(ce.name);
 	if (ceName != 'require(\'fs\').readFile') {
 		return false;
 	}
 	
 	var func = ce.arguments[2]; // the callback
-	if (func) {
-		func.scope.sources.push(func.params[1]); // data
+	if (func && func.scope) {
+		func.scope.sources.push(func.params[1]); // the 2nd argument is the source
 		func.scope.log('SOURCE', node, false, func.params[1]);
+
 		traverse(func.body, func.scope);
 	}
 	return true;

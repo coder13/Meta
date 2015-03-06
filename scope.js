@@ -17,8 +17,9 @@ var fs = require('fs'),
 
 var custom = module.exports.custom = require('./custom');
 
-var sinks = require('./danger.json').sinks;
-var sources = require('./danger.json').sources;
+// Global initial list of sources and sinks
+var Sinks = require('./danger.json').sinks;
+var Sources = require('./danger.json').sources;
 
 var baseFile;
 
@@ -38,8 +39,9 @@ Scope = function(scope) {
 	this.vars = scope.vars || {};
 	if (!this.vars.module) this.vars.module = {exports: {}};
 	if (!this.vars.global) this.vars.global = {};
-	this.sources = scope.sources||sources;
-	this.sinks = scope.sinks||sinks;
+	// dynamic list of sources and sinks as variables get set to them
+	this.sources = scope.sources || Sources;
+	this.sinks = scope.sinks || Sinks;
 	this.log = Scope.log;
 	this.file = scope.file;
 	if (!baseFile) baseFile = scope.file;
@@ -55,6 +57,9 @@ Scope.prototype.track = function(variable) {
 
 	var expr = this.resolveExpression(variable.init, function(value) {
 		if (value) {
+			// if a = process.argv
+			// resolve(a) will result in process.argv
+			// although a should already be a source, this is safer
 			var resolved = scope.resolve(value);
 			if (resolved && typeof resolved == 'string') {
 				if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value)) {
@@ -72,6 +77,8 @@ Scope.prototype.track = function(variable) {
 };
 
 // returns a value for a variable if one exists
+// if a = b
+// resolve(a) will result in b
 Scope.prototype.resolve = function(name) {
 	if (!name || typeof name != 'string')
 		return false;
@@ -119,14 +126,19 @@ Scope.prototype.resolveStatement = function(node) {
 
 			var ceName = scope.resolve(ce.name);
 
-			var t = 'CES';
+			var t = 'CES'; // Call Expression Statement (I.E. a function)
 
 			if (ce.arguments)
+				// for all arguments, check if it is a source
 				ce.arguments.some(function (arg) {
+					// we don't want to look at the arg if it is a function declaration
 					if (!arg || (arg.scope && arg.params && arg.body))
 						return false;
 					var resolved = scope.resolve(arg);
 					var source = resolved;
+					// Ugly ultimate check if the arg is a source. 
+					// the ugly part comes from checking a Binary Expression
+					// and determing what part is the source
 					if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved) ||
 						(traverseJSON(arg, function (a) {
 							if (!a) return false;

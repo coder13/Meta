@@ -1,7 +1,6 @@
 {"sinks": [
 	"eval", 
 	"setTimeout",
-	"setImmediate",
 	"clearTimeout", 
 	"setInterval",
 	"clearInterval",
