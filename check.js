@@ -20,7 +20,8 @@ var sources = require('./danger.json').sources;
 var flags = module.exports.flags = {
 	verbose: false,
 	recursive: false,
-	json: true
+	json: true,
+	debug: false
 };
 
 var reports = module.exports.reports = [];
@@ -30,6 +31,7 @@ module.exports.setFlags = function(flags) {
 	flags.verbose = flags.verbose;
 	flags.recursive = flags.recursive;
 	flags.json = flags.json || true;
+	flags.debug = flags.debug;
 
 	if (flags.recursive) {
 		// function to handle loading and traversing a file upon require()
@@ -177,11 +179,23 @@ traverse = module.exports.traverse = function(ast, scope) {
 		Scope.log('SOURCES', ast, scope.sources);
 	}
 
-	ast.body.forEach(function (node) {
-		if (node.type == 'ExpressionStatement')
-			node = node.expression;
-		scope.resolveStatement(node);
-	});
+	if (flags.debug) {
+		try {
+			ast.body.forEach(function (node) {
+				if (node.type == 'ExpressionStatement')
+					node = node.expression;
+				scope.resolveStatement(node);
+			});
+		} catch (e) {
+			console.log(e);
+		}
+	} else {
+		ast.body.forEach(function (node) {
+			if (node.type == 'ExpressionStatement')
+				node = node.expression;
+			scope.resolveStatement(node);
+		});
+	}
 
 	if (flags.verbose && !flags.json)
 		Scope.Scope.leaveScope();
