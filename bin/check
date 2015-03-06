@@ -8,9 +8,7 @@ var yargs = require('yargs')
     .describe('o', 'if -j, will output json into a file: <file>_log. If a file is given, outputs to that it. Default is false.')
     .showHelpOnFail(false);
 
-var check = require('../check.js'),
-	Scope = require('../scope.js'),
-	colors  = require('colors'),
+var colors  = require('colors'),
 	fs = require('fs'),
 	path = require('path'),
 	_ = require('underscore'),
@@ -38,10 +36,9 @@ if (argv.h) {
 	process.exit();
 }
 
-check.flags.verbose = argv.v;
-check.flags.recursive = argv.r;
-if (argv.j)
-	check.flags.json = argv.j;
+var check = require('../check.js');
+check.setFlags({verbose: argv.v, recursive: argv.r, json: argv.j});
+var Scope = check.Scope;
 
 if (!argv.j)
 	console.log(' ---- '.yellow, file.white);
@@ -50,12 +47,14 @@ var scope = new Scope({
 	file: file
 });
 
-var ast = check.astFromFile(scope.file);
-check.traverse(ast, scope);
+var ast = check.astFromFile(file);
+if (ast) {
+	check.traverse(ast, scope);
 
-if (check.flags.json) {
-	if (check.reports.length !== 0)
-		console.log(require('prettyjson').render(check.reports));
-	else
-		console.log(colors.green('No vulneralbities found'));
+	if (check.flags.json) {
+		if (check.reports.length !== 0)
+			console.log(require('prettyjson').render(check.reports));
+		else
+			console.log(colors.green('No vulneralbities found'));
+	}
 }

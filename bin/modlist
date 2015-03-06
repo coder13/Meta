@@ -1,0 +1,95 @@
+#!/usr/bin/env node
+
+var yargs = require('yargs'),
+	colors  = require('colors'),
+	fs = require('fs'),
+	path = require('path'),
+	_ = require('underscore'),
+	esprima = require('esprima'),
+	estraverse = require('estraverse'),
+	resolve = require('resolve'),
+	file = process.argv[2];
+
+var argv = yargs.argv;
+
+if (!file) {
+	yargs.showHelp();
+	process.exit();
+}
+
+file = path.resolve(file);
+
+if (!fs.existsSync(file)) {
+	console.error(file, 'doesn\'t exist.');
+	process.exit();
+} else if (!fs.lstatSync(file).isFile()) {
+	console.error(file, 'is not a file.');
+	process.exit();
+}
+
+var lookupTable = {};
+var baseFile = file;
+
+var resolvePath = function(file, parent) {
+	var pkg;
+	if (file.indexOf('./') === 0 || file.indexOf('../') === 0) {
+		if (path.extname(file) == '.json') {
+			return false;
+		}
+	}
+
+	try {
+		pkg = resolve.sync(file, {basedir: parent.split('/').slice(0,-1).join('/')});
+	} catch (e) {
+		console.error(String(e));
+		return false;
+	}
+
+	return file == pkg ? false : pkg;
+};
+
+var resolveFile = function(file, scope) {
+	if (!file)
+		return;
+	var j = {};
+
+	var input = String(fs.readFileSync(file));
+	input = _.filter(input.split('\n'), function(l) {return (l[0] + l[1])!="#!";}).join('\n');
+
+	var ast = esprima.parse(input, {loc: true});
+	estraverse.traverse(ast, {
+		enter: function (node, parent) {
+			// assertions
+			if (node.type != 'CallExpression')
+				return;
+			if (node.callee.type != 'Identifier')
+				return;
+			if (node.callee.name != 'require')
+				return;
+			if (!node.arguments[0].value)
+				return;
+
+			var arg = node.arguments[0].value;
+
+			var path = resolvePath(arg, file);
+			if (!argv.j) {
+				if (fs.existsSync(path) || path === false)
+					console.log(scope, colors.green(arg));
+				else
+					console.log(scope, colors.red(arg));
+			}
+			if (lookupTable[arg])
+				return;
+			lookupTable[arg] = true;
+			j[arg] = resolveFile(path, scope + '  --') || {};
+
+		}
+	});
+
+	return j;
+};
+
+var list = resolveFile(file, '-');
+// console.log(list);
+if (argv.j)
+	console.log(require('prettyjson').render(list));

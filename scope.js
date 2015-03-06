@@ -13,14 +13,13 @@ var fs = require('fs'),
 	esprima = require('esprima'),
 	_ = require('underscore'),
 	resolve = require('resolve'),
-	util = require('util'),
-	custom = require('./custom.js');
+	util = require('util');
 
-		
+var custom = module.exports.custom = require('./custom');
+
 var sinks = require('./danger.json').sinks;
 var sources = require('./danger.json').sources;
 
-var lookupTable = {};
 var baseFile;
 
 var cs = {
@@ -35,7 +34,7 @@ var cs = {
 	'RETURN': colors.red
 };
 
-Scope = module.exports.Scope = function(scope) {
+Scope = function(scope) {
 	this.vars = scope.vars || {};
 	if (!this.vars.module) this.vars.module = {exports: {}};
 	if (!this.vars.global) this.vars.global = {};
@@ -478,7 +477,8 @@ Scope.prototype.resolveFunctionExpression = function(node) {
 Scope.prototype.traverse = function(ast, returnCB) {
 	var scope = this;
 	
-	Scope.createNewScope();
+	if (Scope.createNewScope)
+		Scope.createNewScope();
 	scope.log('SOURCES', ast, scope.sources);
 
 	if (ast.type == 'BlockStatement'){
@@ -495,7 +495,8 @@ Scope.prototype.traverse = function(ast, returnCB) {
 		this.resolveStatement(ast.expression || ast);
 	}
 
-	Scope.leaveScope();
+	if (Scope.leaveScope)
+		Scope.leaveScope();
 };
 
 Scope.prototype.resolvePath = function(file, cb) {
@@ -546,7 +547,7 @@ Scope.prototype.isSink = function(name) {
 	return false;
 };
 
-module.exports = Scope;
+module.exports.Scope = Scope;
 
 
 // Returns an array from a tree of BinaryExpressions
