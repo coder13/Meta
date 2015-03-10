@@ -21,8 +21,6 @@ var custom = module.exports.custom = require('./custom');
 var Sinks = require('./danger.json').sinks;
 var Sources = require('./danger.json').sources;
 
-var baseFile;
-
 var cs = {
 	'BE': colors.green,
 	'CE': colors.green,
@@ -44,7 +42,10 @@ Scope = function(scope) {
 	this.sinks = scope.sinks || Sinks;
 	this.log = Scope.log;
 	this.file = scope.file;
-	if (!baseFile) baseFile = scope.file;
+
+	if (!Scope.baseFile)
+		Scope.baseFile = scope.file;
+
 	this.reports = scope.reports || [{source: {name: 'process.argv'}}];
 };
 
@@ -331,7 +332,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 		case 'FunctionExpression': // functions
 			var fe = scope.resolveFunctionExpression(right);
 			return fe;
-		case 'AssignmentExpression':
+		case 'AssignmentExpression': // a = b
 			var assign = scope.resolveAssignment(right);
 			var names = assign.names;
 			var value = this.resolveExpression(assign.value, function(value, isSource) {
@@ -364,10 +365,8 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 
 			if (value)
 				this.log('ASSIGN', right, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
-			break;
-		// default:
-		// 	console.log(right.type, this.file + ':' + pos(right));
-		// 	return {};
+			
+			return value;
 	}
 	return {};
 };

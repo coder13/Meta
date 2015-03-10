@@ -25,17 +25,18 @@ file = path.resolve(file);
 
 if (!fs.existsSync(file)) {
 	console.error(file, 'doesn\'t exist.');
-	process.exit();
+
+	process.exit(0);
 } else if (!fs.lstatSync(file).isFile()) {
 	console.error(file, 'is not a file.');
-	process.exit();
+	process.exit(0);
 }
 
 var argv = yargs.argv;
 
 if (argv.h) {
 	yargs.showHelp();
-	process.exit();
+	process.exit(0);
 }
 
 var check = require('../check.js');
@@ -59,9 +60,9 @@ if (ast) {
 	check.traverse(ast, scope);
 
 	if (check.flags.json) {
-		if (check.reports.length !== 0)
+		if (check.reports.length !== 0){
 			console.log(require('prettyjson').render(check.reports));
-		else
+		} else
 			console.log(colors.green('No vulneralbities found'));
 	}
 }

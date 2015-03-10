@@ -1,7 +1,7 @@
 /*
 	;(function() {eval(String(require('fs').readFileSync(process.argv[1])));})()
 */
-
+	
 // process.on('uncaughtException', function (i) {console.log(i);});
 
 var fs = require('fs'),
@@ -13,9 +13,8 @@ var fs = require('fs'),
 	util = require('util'),
 	Scope = require('./scope.js');
 
-var sinks = require('./danger.json').sinks;
-var sources = require('./danger.json').sources;
-
+var Sinks = require('./danger.json').sinks;
+var Sources = require('./danger.json').sources;
 
 var flags = module.exports.flags = {
 	verbose: false,
@@ -27,11 +26,11 @@ var flags = module.exports.flags = {
 var reports = module.exports.reports = [];
 var lookupTable = {};
 
-module.exports.setFlags = function(flags) {
-	flags.verbose = flags.verbose;
-	flags.recursive = flags.recursive;
-	flags.json = flags.json || true;
-	flags.debug = flags.debug;
+module.exports.setFlags = function(newFlags) {
+	flags.verbose = newFlags.verbose;
+	flags.recursive = newFlags.recursive;
+	flags.json = newFlags.json || true;
+	flags.debug = newFlags.debug;
 
 	if (flags.recursive) {
 		// function to handle loading and traversing a file upon require()
@@ -39,52 +38,56 @@ module.exports.setFlags = function(flags) {
 			if (ce.name != 'require')
 				return false;
 
-			var r;
-			if (ce.arguments[0]) {
-				var file;
-				if (node.arguments[0].type == 'Literal')
-					file = eval(scope.resolveExpression(node.arguments[0]));
-				else {
+			if (!ce.arguments[0])
+				return;
+
+			var file;
+			if (node.arguments[0].type == 'Literal') {
+				file = node.arguments[0].value;
+			} else if (node.arguments[0].type == 'Identifier') {
+				file = scope.resolve(node.arguments[0].name);
+				if (typeof file != 'string')
 					return;
-				}
-
-				if (['hapi', 'express', 'jade'].indexOf(file) != -1 || file.indexOf('hapi') != -1)
-					return; // just ignore these things
-
-				scope.resolvePath(file, function (pkg) {
-					if (!pkg)
-						return;
-
-					if (lookupTable[pkg]) {
-						return;
-					} else {
-						lookupTable[pkg] = true;
-
-						var ast = astFromFile(pkg);
-						if (ast) {
-							if (flags.verbose && !flags.json)
-								console.log(' ---- '.yellow, pkg);
-
-							var newScope = new Scope.Scope({
-								sinks: sinks,
-								sources: sources,
-								file: pkg,
-								log: scope.log,
-								leaveScope: scope.leaveScope
-							});
-							traverse(ast, newScope);
-
-							r = newScope.vars.module.exports;
-
-						} else {
-							if (flags.verbose && !flags.json)
-								console.log(' ---- '.yellow, String(pkg).red);
-						}
-					}
-				});
+			} else {
+				return;
 			}
-			return r;
 
+			if (['hapi', 'express', 'jade'].indexOf(file) != -1 || file.indexOf('hapi') != -1)
+				return; // just ignore these things. They're large and have prewritten handlers anyways.
+
+			var r;
+			scope.resolvePath(file, function (pkg) {
+				if (!pkg)
+					return;
+
+				// Lookup table is a list of files already looked at.
+				// In static analysis, we only want to look at each file once.
+				if (lookupTable[pkg])
+					return;
+				lookupTable[pkg] = true;
+
+				var ast = astFromFile(pkg);
+				if (ast) {
+					if (flags.verbose && !flags.json)
+						console.log(' ---- '.yellow, pkg);
+
+					var newScope = new Scope.Scope({
+						sinks: Sinks,
+						sources: Sources,
+						file: pkg,
+						log: scope.log,
+					});
+					traverse(ast, newScope);
+
+
+					r = newScope.vars.module.exports;
+
+				} else
+					if (flags.verbose && !flags.json)
+						console.log(' ---- '.yellow, String(pkg).red);
+			});
+		
+			return r;
 		});
 	}
 
@@ -107,12 +110,14 @@ module.exports.setFlags = function(flags) {
 				return;
 			switch(type) {
 				case 'SOURCE':
-					this.reports.push({
-						source: {
-							name: value,
-							line: this.file + ':' + pos(node)
-						}
-					});
+					source = find(this.reports, value);
+					if (!source)
+						this.reports.push({
+							source: {
+								name: value,
+								line: 'file://' + this.file + ':' + pos(node)
+							}
+						});
 					break;
 				case 'SCE':
 				case 'SCES': // Possible taint: call expression containing the source.
@@ -123,7 +128,7 @@ module.exports.setFlags = function(flags) {
 						source.chain.push({
 							name: name,
 							value: value,
-							line: this.file + ':' + pos(node)
+							line: 'file://' + this.file + ':' + pos(node)
 						});
 					}
 					break;
@@ -134,30 +139,44 @@ module.exports.setFlags = function(flags) {
 					if (source)
 						source.sink = {
 							name: name,
-							line: this.file + ':' + pos(node)
+							line: 'file://' + this.file + ':' + pos(node)
 						};
 
 					// Flush the report. After finding the sink, we don't want to track it anymore.
 					if (this.reports.indexOf(source) != -1) {
 						this.reports.splice(this.reports.indexOf(source), 1);
+						
+						// console.log(require('prettyjson').render(source));
 						reports.push(source);
 					}
 					break;
 			}
 		};
 	} else if (flags.verbose) {
-		Scope.createNewScope = function() {
+		Scope.Scope.createNewScope = function() {
 			console.log('Creating new scope'.yellow);
 		};
 
-		Scope.leaveScope = function () {
-			console.log('leaving scope'.yellow);
+		Scope.Scope.leaveScope = function () {
+			console.log('Leaving scope'.yellow);
 		};
 
-		Scope.log = function(type, node, name, value) {
+		var cs = { // colors
+			'BE': colors.green,
+			'CE': colors.green,
+			'SCE': colors.red,
+			'SCES': colors.red,
+			'SINK': colors.red,
+			'SASSIGN': colors.red,
+			'SOURCE': colors.red,
+			'SOURCES': colors.yellow,
+			'RETURN': colors.red
+		};
+
+		Scope.Scope.log = function(type, node, name, value) {
 			var p = pos(node);
 			if (flags.recursive)
-				p = path.relative(baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
+				p = 'file://' + path.relative(baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
 
 			console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
 						colors.grey(p), name, value ? value : '');
@@ -167,6 +186,7 @@ module.exports.setFlags = function(flags) {
 	module.exports.Scope = Scope.Scope;
 };
 
+// Traverses ast.
 traverse = module.exports.traverse = function(ast, scope) {
 	if (!ast) {
 		console.error('An error occured when parsing the file. The file may not be valid not be valid javascript.');

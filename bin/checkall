@@ -1,0 +1,62 @@
+#!/usr/bin/env node
+
+var yargs = require('yargs')
+	.usage('Usage: checkall')
+    .showHelpOnFail(false);
+
+var colors = require('colors'),
+	fs = require('fs'),
+	path = require('path');
+
+var argv = yargs.argv;
+
+folder = argv.f || path.resolve(process.cwd()) + '/';
+
+var files = fs.readdirSync(folder);
+
+files.forEach(function (i) {
+	if (!fs.statSync(folder + i).isDirectory())
+		return;
+	
+	try {
+		// if (!fs.existsSync(i + '/src'))
+		// 	return;
+		// i += '/src';
+		if (!fs.existsSync(folder + i + '/package.json'))
+			return;
+		pkgJson = require(folder + i + '/package.json');
+		if (!pkgJson.main)
+			return;
+
+		var file = i + '/' + pkgJson.main;
+
+		var check = require('../check.js');
+		check.setFlags({
+			verbose: false,
+			recursive: true,
+			json: true,
+			debug: false
+		});
+
+		var scope = new check.Scope({
+			file: file
+		});
+
+		var ast = check.astFromFile(file);
+		if (ast) {
+			console.log(colors.blue(file));
+			check.traverse(ast, scope);
+
+			if (check.flags.json) {
+				if (check.reports.length !== 0){
+					console.log(require('prettyjson').render(check.reports));
+				} else
+					console.log(colors.green('No vulneralbities found'));
+			}
+		}
+
+	} catch (e) {
+		console.error(e);
+	}
+
+});
