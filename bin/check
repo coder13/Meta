@@ -43,7 +43,7 @@ var check = require('../check.js');
 check.setFlags({
 	verbose: argv.v,
 	recursive: argv.r,
-	json: argv.j,
+	json: !argv.j && !argv.v,
 	debug: argv.d
 });
 var Scope = check.Scope;

@@ -19,9 +19,9 @@ files.forEach(function (i) {
 		return;
 	
 	try {
-		// if (!fs.existsSync(i + '/src'))
-		// 	return;
-		// i += '/src';
+		if (!fs.existsSync(i + '/src'))
+			return;
+		i += '/src';
 		if (!fs.existsSync(folder + i + '/package.json'))
 			return;
 		pkgJson = require(folder + i + '/package.json');
@@ -54,6 +54,8 @@ files.forEach(function (i) {
 					console.log(colors.green('No vulneralbities found'));
 			}
 		}
+
+		check.reports = [];	
 
 	} catch (e) {
 		console.error(e);

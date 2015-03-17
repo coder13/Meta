@@ -21,21 +21,17 @@ var custom = module.exports.custom = require('./custom');
 var Sinks = require('./danger.json').sinks;
 var Sources = require('./danger.json').sources;
 
-var cs = {
-	'BE': colors.green,
-	'CE': colors.green,
-	'SCE': colors.red,
-	'SCES': colors.red,
-	'SINK': colors.red,
-	'SASSIGN': colors.red,
-	'SOURCE': colors.red,
-	'SOURCES': colors.yellow,
-	'RETURN': colors.red
+module.exports.flags = flags = {
+	verbose: false,
+	recursive: false,
+	json: true,
+	debug: false
 };
 
 Scope = function(scope) {
 	this.vars = scope.vars || {};
 	if (!this.vars.module) this.vars.module = {exports: {}};
+	if (!this.vars.exports) this.vars.exports = {};
 	if (!this.vars.global) this.vars.global = {};
 	// dynamic list of sources and sinks as variables get set to them
 	this.sources = scope.sources || Sources;
@@ -113,6 +109,8 @@ function get(json, name) {
 
 Scope.prototype.resolveStatement = function(node) {
 	var scope = this;
+	// if (!node)
+	// 	return;
 	switch (node.type) {
 		case 'VariableDeclaration':
 			node.declarations.forEach(function (i) {
@@ -189,7 +187,10 @@ Scope.prototype.resolveStatement = function(node) {
 						eval('scope.vars.' + name + ' = ' + JSON.stringify(value));
 					}
 				} catch (e) {
-				
+					// if (flags.debug) {
+					// 	console.error('Error reading line:'.red, scope.file + ':' + pos(node));
+					// 	console.error(e.stack);
+					// }
 				}
 			});
 
@@ -198,9 +199,6 @@ Scope.prototype.resolveStatement = function(node) {
 			break;
 		case 'FunctionDeclaration':
 			var func = scope.resolveFunctionExpression(node);
-			scope.vars[func.name] = func;
-
-			traverse(func.body, func.scope);
 
 			this.log('FUNC', node, func.name);
 			break;
@@ -212,7 +210,11 @@ Scope.prototype.resolveStatement = function(node) {
 			break;
 		case 'ForInStatement': // These
 		case 'ForStatement':   // are
+			if (node.init || node.left)
+				this.resolveStatement(node.init || node.left);
 		case 'WhileStatement': // all
+			if (node.test)
+				this.resolveExpression(node.test);
 		case 'CatchClause':    // the same
 			this.traverse(node.body);
 			break;
@@ -259,7 +261,6 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 		case 'UpdateExpression':
 		case 'UnaryExpression':
 			var arg = this.resolveExpression(right.argument, isSourceCB);
-			// console.log(right.operator, arg);
 			return {};
 		case 'ArrayExpression':
 			var array = scope.resolveArrayExpression(right);
@@ -303,7 +304,6 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 								}
 								return false;
 							}))) {
-							
 							
 							// If the function is a sink and there is a source, return as sink;
 							// If not a sink but still has source, return as a Source CES (possible taint)
@@ -359,7 +359,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 							eval('scope.vars.' + name + ' = ' + JSON.stringify(value));
 					}
 				} catch (e) {
-				
+					
 				}
 			});
 
@@ -414,15 +414,15 @@ Scope.prototype.resolveCallExpression = function(node) {
 	}
 	ce.raw = ce.name + '(' + (ce.arguments ? ce.arguments.join(','):'') + ')';
 
-	custom.some(function(i) {
-		var r = false;
-		if (ce.name) {
-			r = i(scope, node, ce); // result
-			if (r)
-				ce = r;
-		}
-		return !!r;
-	});
+	if (ce.name) {
+		custom.some(function(i) {
+			var r = false;
+				r = i(scope, node, ce); // result
+				if (r)
+					ce = r;
+			return !!r;
+		});
+	}
 	return ce;
 };
 
@@ -465,6 +465,8 @@ Scope.prototype.resolveFunctionExpression = function(node) {
 	for (var i in fe.params) {
 		fe.scope.addVar(fe.params[i], undefined);
 	}
+
+	scope.vars[fe.name] = fe;
 	fe.scope.traverse(fe.body, function(node) {
 		// Push scope.log. We don't want line 466 to log anything. Then pop it.
 		var l = scope.log; scope.log = function () {};
@@ -496,10 +498,18 @@ Scope.prototype.traverse = function(ast, returnCB) {
 		(ast.body || [ast]).forEach(function (node) {
 			if (node.type == 'ExpressionStatement')
 				node = node.expression;
-			scope.resolveStatement(node);
-			if (returnCB && node.type == 'ReturnStatement') {
-				returnCB(node);
+			try {
+				scope.resolveStatement(node);
+				if (returnCB && node.type == 'ReturnStatement') {
+					returnCB(node);
+				}
+			} catch (e) {
+				if (flags.debug) {
+					console.error('Error reading line:'.red, scope.file + ':' + pos(node));
+					console.error(e.stack);
+				}
 			}
+
 		});
 	} else {
 		// ast is a single statement so resolve it instead
@@ -521,7 +531,7 @@ Scope.prototype.resolvePath = function(file, cb) {
 	try {
 		pkg = resolve.sync(file, {basedir: String(this.file).split('/').slice(0,-1).join('/')});
 	} catch (e) {
-		console.error(String(e));
+		// console.log(e);
 		return false;
 	}
 
@@ -586,4 +596,9 @@ traverseJSON = function(o,func) {
 
 		return false;
 	}) : false;
+};
+
+// Convience function to return the line of a node assuming a node has one. 
+pos = module.exports.pos = function(node) {
+	return node.loc ? String(node.loc.start.line) : "-1";
 };

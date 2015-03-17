@@ -27,10 +27,10 @@ var reports = module.exports.reports = [];
 var lookupTable = {};
 
 module.exports.setFlags = function(newFlags) {
-	flags.verbose = newFlags.verbose;
-	flags.recursive = newFlags.recursive;
-	flags.json = newFlags.json || true;
-	flags.debug = newFlags.debug;
+	Scope.flags.verbose = flags.verbose = newFlags.verbose;
+	Scope.flags.recursive = flags.recursive = newFlags.recursive;
+	Scope.flags.json = flags.json = newFlags.json;
+	Scope.flags.debug = flags.debug = newFlags.debug;
 
 	if (flags.recursive) {
 		// function to handle loading and traversing a file upon require()
@@ -108,6 +108,8 @@ module.exports.setFlags = function(newFlags) {
 		Scope.Scope.log = function(type, node, name, value) {
 			if (typeof value !== 'string')
 				return;
+			if (!type)
+				return;
 			switch(type) {
 				case 'SOURCE':
 					source = find(this.reports, value);
@@ -115,7 +117,7 @@ module.exports.setFlags = function(newFlags) {
 						this.reports.push({
 							source: {
 								name: value,
-								line: 'file://' + this.file + ':' + pos(node)
+								line: this.file + ':' + pos(node)
 							}
 						});
 					break;
@@ -128,7 +130,7 @@ module.exports.setFlags = function(newFlags) {
 						source.chain.push({
 							name: name,
 							value: value,
-							line: 'file://' + this.file + ':' + pos(node)
+							line: this.file + ':' + pos(node)
 						});
 					}
 					break;
@@ -139,7 +141,7 @@ module.exports.setFlags = function(newFlags) {
 					if (source)
 						source.sink = {
 							name: name,
-							line: 'file://' + this.file + ':' + pos(node)
+							line: this.file + ':' + pos(node)
 						};
 
 					// Flush the report. After finding the sink, we don't want to track it anymore.
@@ -176,10 +178,13 @@ module.exports.setFlags = function(newFlags) {
 		Scope.Scope.log = function(type, node, name, value) {
 			var p = pos(node);
 			if (flags.recursive)
-				p = 'file://' + path.relative(baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
+				p = 'file://' + path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
 
-			console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
-						colors.grey(p), name, value ? value : '');
+
+			console.log('  ', '[' + type + ']', p, name, value ? value : '');
+
+			// console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
+			// 			colors.grey(p), name, value ? value : '');
 		};
 	}
 
@@ -196,26 +201,21 @@ traverse = module.exports.traverse = function(ast, scope) {
 	if (flags.verbose) {
 		if (!flags.json)
 			Scope.Scope.createNewScope();
-		Scope.log('SOURCES', ast, scope.sources);
+		scope.log('SOURCES', ast, scope.sources);
 	}
 
-	if (flags.debug) {
+	ast.body.forEach(function (node) {
+		if (node.type == 'ExpressionStatement')
+			node = node.expression;
 		try {
-			ast.body.forEach(function (node) {
-				if (node.type == 'ExpressionStatement')
-					node = node.expression;
-				scope.resolveStatement(node);
-			});
-		} catch (e) {
-			console.log(e);
-		}
-	} else {
-		ast.body.forEach(function (node) {
-			if (node.type == 'ExpressionStatement')
-				node = node.expression;
 			scope.resolveStatement(node);
-		});
-	}
+		} catch (e) {
+			if (flags.debug) {
+				console.error('Error reading line:'.red, scope.file + ':' + pos(node));
+				console.error(e.stack);
+			}
+		}
+	});
 
 	if (flags.verbose && !flags.json)
 		Scope.Scope.leaveScope();

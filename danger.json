@@ -6,9 +6,11 @@
 	"clearInterval",
 	"require\\([\\']child_process[\\']\\)\\.exec", 
 	"require\\([\\']http[\\']\\)\\.get",
-	"require\\([\\']fs[\\']\\)\\.\\w+"
+	"require\\([\\']fs[\\']\\)\\.\\w+",
+	"require\\([\\']mongodb[\\']\\)\\.\\w+",
+	"require\\([\\']hapi[\\']\\)\\.\\w+",
+	"require\\([\\']express[\\']\\)\\.\\w+"
 ],
 "sources": [
-	"process.argv",
-	"eval"
+	"process.argv"
 ]}
