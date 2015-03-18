@@ -1,8 +1,6 @@
 /*
 	;(function() {eval(String(require('fs').readFileSync(process.argv[1])));})()
 */
-	
-// process.on('uncaughtException', function (i) {console.log(i);});
 
 var fs = require('fs'),
 	path = require('path'),
@@ -79,7 +77,6 @@ module.exports.setFlags = function(newFlags) {
 					});
 					traverse(ast, newScope);
 
-
 					r = newScope.vars.module.exports;
 
 				} else
@@ -98,7 +95,10 @@ module.exports.setFlags = function(newFlags) {
 
 		find = function(r, name) {
 			return _.find(r, function(i) {
-				return name.indexOf(i.source.name) === 0;
+				var r = name.indexOf(i.source.name + '.') === 0 ||
+						name.indexOf(i.source.name + '(') === 0 ||
+						name == i.source.name;
+				return r;
 			});
 		};
 
@@ -112,7 +112,7 @@ module.exports.setFlags = function(newFlags) {
 				return;
 			switch(type) {
 				case 'SOURCE':
-					source = find(this.reports, value);
+					var source = find(this.reports, value);
 					if (!source)
 						this.reports.push({
 							source: {
@@ -123,7 +123,7 @@ module.exports.setFlags = function(newFlags) {
 					break;
 				case 'SCE':
 				case 'SCES': // Possible taint: call expression containing the source.
-					source = find(this.reports, value);
+					var source = find(this.reports, value);
 					if (source) {
 						if (!source.chain)
 							source.chain = [];
@@ -137,7 +137,7 @@ module.exports.setFlags = function(newFlags) {
 				case 'SASSIGN':
 					break;
 				case 'SINK':
-					source = find(this.reports, value);
+					var source = find(this.reports, value);
 					if (source)
 						source.sink = {
 							name: name,
@@ -153,6 +153,7 @@ module.exports.setFlags = function(newFlags) {
 					}
 					break;
 			}
+			
 		};
 	} else if (flags.verbose) {
 		Scope.Scope.createNewScope = function() {
@@ -181,10 +182,9 @@ module.exports.setFlags = function(newFlags) {
 				p = 'file://' + path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
 
 
-			console.log('  ', '[' + type + ']', p, name, value ? value : '');
-
-			// console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
-			// 			colors.grey(p), name, value ? value : '');
+		// console.log('  ', '[' + type + ']', p, name, value ? value : '');
+			console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
+						colors.grey(p), name, value ? value : '');
 		};
 	}
 

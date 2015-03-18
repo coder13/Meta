@@ -60,7 +60,7 @@ Scope.prototype.track = function(variable) {
 			var resolved = scope.resolve(value);
 			if (resolved && typeof resolved == 'string') {
 				if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value)) {
-					scope.sources.push(name);
+					scope.sources[name] = value;
 					scope.log('SOURCE', variable, name, value);
 				}
 			}
@@ -70,7 +70,7 @@ Scope.prototype.track = function(variable) {
 	
 	this.vars[name] = expr;
 
-	this.log('VAR', variable, name);
+	this.log('VAR', variable, name, expr.raw || expr.name || expr);
 };
 
 // returns a value for a variable if one exists
@@ -109,8 +109,6 @@ function get(json, name) {
 
 Scope.prototype.resolveStatement = function(node) {
 	var scope = this;
-	// if (!node)
-	// 	return;
 	switch (node.type) {
 		case 'VariableDeclaration':
 			node.declarations.forEach(function (i) {
@@ -119,36 +117,18 @@ Scope.prototype.resolveStatement = function(node) {
 			break;
 		case 'CallExpression':
 			var ce = scope.resolveCallExpression(node);
-			if (!ce.name) {
-				return ce;
-			}
+			if (!ce.name)
+				break;
 
 			var ceName = scope.resolve(ce.name);
 
 			var t = 'CES'; // Call Expression Statement (I.E. a function)
 
-			if (ce.arguments)
+			if (ce.arguments) {
 				// for all arguments, check if it is a source
 				ce.arguments.some(function (arg) {
-					// we don't want to look at the arg if it is a function declaration
-					if (!arg || (arg.scope && arg.params && arg.body))
-						return false;
-					var resolved = scope.resolve(arg);
-					var source = resolved;
-					// Ugly ultimate check if the arg is a source. 
-					// the ugly part comes from checking a Binary Expression
-					// and determing what part is the source
-					if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved) ||
-						(traverseJSON(arg, function (a) {
-							if (!a) return false;
-							var r = scope.resolve(a);
-							if (scope.isSource(a.name || a) || scope.isSource(r.name || r)) {
-								source = r;
-								return true;
-							}
-							return false;
-						}))) {
-
+					var source;
+					if (source = scope.resolveSource(arg)) {
 						// If the function is a sink and there is a source, return as sink;
 						// If not a sink but still has source, return as a Source CES (possible taint)
 						t = (scope.isSink(ce.name) || scope.isSink(ceName))?'SINK':'SCES';
@@ -157,11 +137,12 @@ Scope.prototype.resolveStatement = function(node) {
 					}
 					return false;
 				});
+			}
 
-			if (typeof ceName == 'string')
-				this.log(t, node, ce.name, typeof ceName == 'string'?ceName:{});
+			if (typeof ceName == 'string' && flags.verbose)
+				this.log(t, node, ce.raw);
 
-			return ce;
+			break;
 		case 'AssignmentExpression':
 			var assign = scope.resolveAssignment(node);
 			var names = assign.names;
@@ -249,7 +230,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 	var scope = this;
 	switch (right.type) {
 		case 'Literal': // string, number, etc..
-			return right.raw;
+			return "'" + eval(right.raw) + "'";
 		case 'Identifier': // variables, etc...
 			// if variable is being set to a bad variable, mark it too as bad
 			if (isSourceCB) {
@@ -289,28 +270,14 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			if (ceName && typeof ceName == 'string') {
 				if (ce.arguments) {
 					ce.arguments.some(function (arg) {
-					if (!arg || (arg.scope && arg.params && arg.body))
-						return false;
-						var resolved = scope.resolve(arg);
-						var source = resolved;
-
-						if (scope.isSource(arg.name || arg) || scope.isSource(resolved.name || resolved) ||
-							(traverseJSON(arg, function (a) {
-								if (!a) return false;
-								var r = scope.resolve(a);
-								if (scope.isSource(a.name || a) || scope.isSource(r.name || r)) {
-									source = r;
-									return true;
-								}
-								return false;
-							}))) {
-							
+						var source;
+						if (source = scope.resolveSource(arg)) { // I do want to set source to resolveSource(arg)
 							// If the function is a sink and there is a source, return as sink;
 							// If not a sink but still has source, return as a Source CES (possible taint)
+
 							t = (scope.isSink(ce.name) || scope.isSink(ceName))?'SINK':'SCES';
 							scope.log(t, right, ce.name, source);
 						}
-						return false;
 					});
 				}
 
@@ -337,14 +304,14 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			var names = assign.names;
 			var value = this.resolveExpression(assign.value, function(value, isSource) {
 				if (value) {
-					var resolved = scope.resolve(value);
+					var resolved = scope.resolve(value); 
 					if (resolved && typeof resolved == 'string') {
 						if (scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved)) {
 							scope.sinks.push(names);
 							scope.log('SASSIGN', right, names.length==1?names[0]:names, value);
-						} else if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value)) {
-							scope.sources.push(names);
-							scope.log('SOURCE', right, names.length==1?names[0]:names, value);
+						} else if (source = this.resolveSource(value)) {
+							scope.sources[names] = source;
+							scope.log('SOURCE', right, names.length==1?names[0]:names, source);
 						}
 					}
 				}
@@ -415,11 +382,10 @@ Scope.prototype.resolveCallExpression = function(node) {
 	ce.raw = ce.name + '(' + (ce.arguments ? ce.arguments.join(','):'') + ')';
 
 	if (ce.name) {
+		var r = false;
 		custom.some(function(i) {
-			var r = false;
-				r = i(scope, node, ce); // result
-				if (r)
-					ce = r;
+			if (r = i(scope, node, ce))
+				ce = r;
 			return !!r;
 		});
 	}
@@ -473,17 +439,45 @@ Scope.prototype.resolveFunctionExpression = function(node) {
 		var arg = scope.resolveExpression(node.argument);
 		scope.log = l;
 
-		var resolved = scope.resolve(arg);
-		if (resolved && typeof resolved == 'string') {
-			if (scope.isSource(resolved.name || resolved) || scope.isSource(arg.name || arg)) {
-				if (fe.name)
-					scope.sources.push(fe.name);
-				scope.log('RETURN', node, fe.name, arg, resolved);
+		if (fe.name) {
+			var source;
+			if (source = scope.resolveSource(arg)) {
+				scope.sources[fe.name] = source;
+				scope.log('RETURN', node, fe.name, arg);
 			}
 		}
 	});
 
 	return fe;
+};
+
+// complicated code to check if the argument is a source and returns the reason why it's a source
+Scope.prototype.resolveSource = function(expr) {
+	var scope = this;
+	// specifically handles call expressions
+	if (expr.name && expr.arguments && expr.raw) {
+		var s = false;
+		expr.arguments.some(function (i) {
+			s = resolveSource(i);
+			return !!s;
+		});
+		return s;
+	}
+
+	var resolved = this.resolve(expr);
+	var source = resolved;
+
+	if (typeof expr == 'object' || typeof resolved == 'object') {
+		return (traverseJSON(expr, function (a) {
+				if (!a) return false;
+				return scope.resolveSource(a);
+		}));
+	} else {
+		if (scope.isSource(expr.name || expr) || scope.isSource(resolved.name || resolved))
+			return resolved;
+	}
+
+	return false;
 };
 
 // Traverses an array of statments.

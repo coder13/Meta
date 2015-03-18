@@ -44,7 +44,7 @@ check.setFlags({
 	verbose: argv.v,
 	recursive: argv.r,
 	json: !argv.j && !argv.v,
-	debug: argv.d
+	debug: argv.d || true
 });
 var Scope = check.Scope;
 

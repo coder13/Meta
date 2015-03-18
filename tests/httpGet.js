@@ -3,8 +3,8 @@ var http = require('http');
 http.get('aurl.com', function(res, req) {
 
 	console.log(req);
-	request = taint(req);
+	var rezquest = taint(req);
 
-	eval(request);
+	eval(req);
 
 });

@@ -4,7 +4,7 @@ var Scope = require('./scope.js');
 var custom = module.exports.custom = [
 function(scope, node, ce) { // http.get
 	var ceName = scope.resolve(ce.name);
-	if (ceName != 'require(\'http\').get') {
+	if (ceName != "require('http').get") {
 		return false;
 	}
 	
@@ -12,13 +12,24 @@ function(scope, node, ce) { // http.get
 
 	func.scope.sources.push(func.params[1]);
 	func.scope.log('SOURCE', node, false, func.params[1]);
-	traverse(func.body, func.scope);
+	traverse(func.body, func.scope, returnCB);
+	return true;
+}, function (scope, node, ce) {
+	var ceName = scope.resolve(ce.name);
+	if (ceName != "require('http').createServer"){
+		return false;
+	}
+
+	var func = ce.arguments[0];
+	func.scope.sources.push(func.params[0]);
+	func.scope.log('SOURCE', node, false, func.params[0]);
+	traverse(func.body, func.scope, returnCB);
 	return true;
 }, function(scope, node, ce) {// (new require('hapi').server()).route()
-	if (ce.name.indexOf('require(\'hapi\').Server()') === 0)
+	if (ce.name.indexOf("require('hapi').Server()") === 0)
 		return false;
 	var ceName = scope.resolve(ce.name);
-	if (typeof ceName != "string" || ceName.split('.').slice(-1)[0] != 'route')
+	if (typeof ceName != "string" || ceName.split('.').slice(-1)[0] != "route")
 		return false;
 
 	if (ce.arguments[0]) {
@@ -32,7 +43,7 @@ function(scope, node, ce) { // http.get
 		if (func && func.scope) {
 			func.scope.sources.push(func.params[0]);
 			func.scope.log('SOURCE', node, false, func.params[0]);
-			traverse(func.body, func.scope);
+			traverse(func.body, func.scope, returnCB);
 		}
 	}
 
@@ -51,7 +62,7 @@ function(scope, node, ce) { // http.get
 		if (func && func.scope) {
 			func.scope.sources.push(func.params[0]);
 			func.scope.log('SOURCE', node, false, func.params[0]);
-			traverse(func.body, func.scope);
+			traverse(func.body, func.scope, returnCB);
 
 		}
 	}
@@ -60,7 +71,7 @@ function(scope, node, ce) { // http.get
 
 }, function(scope, node, ce) {// require('fs').readFile
 	var ceName = scope.resolve(ce.name);
-	if (ceName != 'require(\'fs\').readFile') {
+	if (ceName != "require(\'fs\').readFile") {
 		return false;
 	}
 	
@@ -69,9 +80,25 @@ function(scope, node, ce) { // http.get
 		func.scope.sources.push(func.params[1]); // the 2nd argument is the source
 		func.scope.log('SOURCE', node, false, func.params[1]);
 
-		traverse(func.body, func.scope);
+		traverse(func.body, func.scope, returnCB);
 	}
 	return true;
 }];
+
+var returnCB = function(node) {
+	// Push scope.log. We don't want line 466 to log anything. Then pop it.
+	var l = scope.log; scope.log = function () {};
+	var arg = scope.resolveExpression(node.argument);
+	scope.log = l;
+
+	var resolved = scope.resolve(arg);
+	if (resolved && typeof resolved == 'string') {
+		if (scope.isSource(resolved.name || resolved) || scope.isSource(arg.name || arg)) {
+			if (fe.name)
+				scope.sources.push(fe.name);
+			scope.log('RETURN', node, fe.name, arg, resolved);
+		}
+	}
+};
 
 module.exports = custom;
