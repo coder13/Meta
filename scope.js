@@ -127,12 +127,15 @@ Scope.prototype.resolveStatement = function(node) {
 			if (ce.arguments) {
 				// for all arguments, check if it is a source
 				ce.arguments.some(function (arg) {
-					var source;
-					if (source = scope.resolveSource(arg)) {
+					if (arg.params && arg.body && arg.scope)
+						return false; // skips callbacks
+					var source = scope.resolveSource(arg);
+					if (source) {
+						
 						// If the function is a sink and there is a source, return as sink;
 						// If not a sink but still has source, return as a Source CES (possible taint)
 						t = (scope.isSink(ce.name) || scope.isSink(ceName))?'SINK':'SCES';
-						scope.log(t, node, ce.name, source.name || source);
+						scope.log(t, node, ce.name, source.raw || source.name || source);
 						return true;
 					}
 					return false;
@@ -149,14 +152,15 @@ Scope.prototype.resolveStatement = function(node) {
 			var value = this.resolveExpression(assign.value, function(value, isSource) {
 				if (value) {
 					var resolved = scope.resolve(value);
+					var source;
 					if (resolved && typeof resolved == 'string') {
 						if (node.right.type == 'Identifier' &&
 							(scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved))) {
 							scope.sinks.push(names);
 							scope.log('SASSIGN', node, names.length==1?names[0]:names, value);
-						} else if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value)) {
-							scope.sources.push(names);
-							scope.log('SOURCE', node, names.length==1?names[0]:names, value);
+						} else if (source = scope.resolveSource(value)) {
+							scope.sources[names] = source;
+							scope.log('SOURCE', node, names.length==1?names[0]:names, source);
 						}
 					}
 				}
@@ -270,13 +274,15 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			if (ceName && typeof ceName == 'string') {
 				if (ce.arguments) {
 					ce.arguments.some(function (arg) {
-						var source;
-						if (source = scope.resolveSource(arg)) { // I do want to set source to resolveSource(arg)
+						if (arg.params && arg.body && arg.scope)
+							return false; // skips callbacks
+						var source = scope.resolveSource(arg);
+						if (source) { // I do want to set source to resolveSource(arg)
 							// If the function is a sink and there is a source, return as sink;
 							// If not a sink but still has source, return as a Source CES (possible taint)
 
 							t = (scope.isSink(ce.name) || scope.isSink(ceName))?'SINK':'SCES';
-							scope.log(t, right, ce.name, source);
+							scope.log(t, right, ce.name, source.raw || source.name || source);
 						}
 					});
 				}
@@ -419,7 +425,7 @@ Scope.prototype.resolveObjectExpression = function(node) {
 	return obj;
 };
 
-Scope.prototype.resolveFunctionExpression = function(node) {
+Scope.prototype.resolveFunctionExpression = function(node, newScope) {
 	var scope = this;
 	var fe = {
 		name: node.id ? node.id.name : '',
@@ -451,7 +457,8 @@ Scope.prototype.resolveFunctionExpression = function(node) {
 	return fe;
 };
 
-// complicated code to check if the argument is a source and returns the reason why it's a source
+// complicated code to check if the argument is a source 
+// and returns the part of it that is the source
 Scope.prototype.resolveSource = function(expr) {
 	var scope = this;
 	// specifically handles call expressions
@@ -468,10 +475,12 @@ Scope.prototype.resolveSource = function(expr) {
 	var source = resolved;
 
 	if (typeof expr == 'object' || typeof resolved == 'object') {
-		return (traverseJSON(expr, function (a) {
-				if (!a) return false;
-				return scope.resolveSource(a);
+		(traverseJSON(expr, function (a) {
+			if (!a) return false;
+			source = scope.resolveSource(a);
+			return source;
 		}));
+		return source;
 	} else {
 		if (scope.isSource(expr.name || expr) || scope.isSource(resolved.name || resolved))
 			return resolved;
@@ -525,7 +534,6 @@ Scope.prototype.resolvePath = function(file, cb) {
 	try {
 		pkg = resolve.sync(file, {basedir: String(this.file).split('/').slice(0,-1).join('/')});
 	} catch (e) {
-		// console.log(e);
 		return false;
 	}
 
