@@ -15,7 +15,107 @@ var fs = require('fs'),
 	resolve = require('resolve'),
 	util = require('util');
 
-var custom = module.exports.custom = require('./custom');
+var custom = module.exports.custom = [
+function(scope, node, ce) { // http.get
+	var ceName = scope.resolve(ce.name);
+	if (ceName != "require('http').get") {
+		return false;
+	}
+	
+	var func = ce.arguments[1];
+
+	function function_name (argument) {
+		// body...
+	}c.scope.sources.push(func.params[1]);
+	func.scope.log('SOURCE', node, false, func.params[1]);
+	traverse(func.body, func.scope, returnCB);
+	return true;
+}, function (scope, node, ce) {
+	var ceName = scope.resolve(ce.name);
+	if (ceName != "require('http').createServer"){
+		return false;
+	}
+
+	var func = ce.arguments[0];
+	func.scope.sources.push(func.params[0]);
+	func.scope.log('SOURCE', node, false, func.params[0]);
+	traverse(func.body, func.scope, returnCB);
+	return true;
+}, function(scope, node, ce) {// (new require('hapi').server()).route()
+	if (ce.name.indexOf("require('hapi').Server()") === 0)
+		return false;
+	var ceName = scope.resolve(ce.name);
+	if (typeof ceName != "string" || ceName.split('.').slice(-1)[0] != "route")
+		return false;
+
+	if (ce.arguments[0]) {
+		var func;
+		if (ce.arguments[0].config && ce.arguments[0].config.handler) {
+			func = ce.arguments[0].config.handler;
+		} else {
+			func = ce.arguments[0].handler;
+		}
+
+		if (func && func.scope) {
+			func.scope.sources[func.params[0]] = func.params[0];
+			Scope.log.call('SOURCE', node, false, func.params[0]);
+			traverse(func.body, func.scope, returnCB);
+		}
+	}
+
+	return true;
+
+}, function(scope, node, ce) {// (new require('express').Router()).route() && .post()
+	var ceName = scope.resolve(ce.name);
+	if (typeof ceName != "string" || ceName.indexOf('express') == -1)
+		return false;
+	if (['post', 'get'].indexOf(ceName.split('.').slice(-1)[0]) == -1)
+		return false;
+
+	if (ce.arguments && ce.arguments[1]) {
+		var func = ce.arguments[1];
+
+		if (func && func.scope) {
+			func.scope.sources.push(func.params[0]);
+			func.scope.log('SOURCE', node, false, func.params[0]);
+			traverse(func.body, func.scope, returnCB);
+
+		}
+	}
+
+	return true;
+
+}, function(scope, node, ce) {// require('fs').readFile
+	var ceName = scope.resolve(ce.name);
+	if (ceName != "require(\'fs\').readFile") {
+		return false;
+	}
+	
+	var func = ce.arguments[2]; // the callback
+	if (func && func.scope) {
+		func.scope.sources.push(func.params[1]); // the 2nd argument is the source
+		func.scope.log('SOURCE', node, false, func.params[1]);
+
+		traverse(func.body, func.scope, returnCB);
+	}
+	return true;
+}];
+
+var returnCB = function(node) {
+	// Push scope.log. We don't want line 466 to log anything. Then pop it.
+	var l = scope.log; scope.log = function () {};
+	var arg = scope.resolveExpression(node.argument);
+	scope.log = l;
+
+	var resolved = scope.resolve(arg);
+	if (resolved && typeof resolved == 'string') {
+		if (scope.isSource(resolved.name || resolved) || scope.isSource(arg.name || arg)) {
+			if (fe.name)
+				scope.sources.push(fe.name);
+			scope.log('RETURN', node, fe.name, arg, resolved);
+		}
+	}
+};
 
 // Global initial list of sources and sinks
 var Sinks = require('./danger.json').sinks;
@@ -28,7 +128,7 @@ module.exports.flags = flags = {
 	debug: false
 };
 
-Scope = function(scope) {
+function Scope (scope) {
 	this.vars = scope.vars || {};
 	if (!this.vars.module) this.vars.module = {exports: {}};
 	if (!this.vars.exports) this.vars.exports = {};
@@ -43,7 +143,7 @@ Scope = function(scope) {
 		Scope.baseFile = scope.file;
 
 	this.reports = scope.reports || [{source: {name: 'process.argv'}}];
-};
+}
 
 Scope.log = function(type, node, name, value) {};
 
@@ -57,11 +157,12 @@ Scope.prototype.track = function(variable) {
 			// if a = process.argv
 			// resolve(a) will result in process.argv
 			// although a should already be a source, this is safer
+			// console.log(value, scope.sources);
 			var resolved = scope.resolve(value);
 			if (resolved && typeof resolved == 'string') {
 				if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value)) {
 					scope.sources[name] = value;
-					scope.log('SOURCE', variable, name, value);
+					Scope.log.call(scope, 'SOURCE', variable, name, value);
 				}
 			}
 		}
@@ -70,8 +171,9 @@ Scope.prototype.track = function(variable) {
 	
 	this.vars[name] = expr;
 
-	this.log('VAR', variable, name, expr.raw || expr.name || expr);
+	Scope.log.call(this, 'VAR', variable, name, expr.raw || expr.name || expr);
 };
+
 
 // returns a value for a variable if one exists
 // if a = b
@@ -131,11 +233,11 @@ Scope.prototype.resolveStatement = function(node) {
 						return false; // skips callbacks
 					var source = scope.resolveSource(arg);
 					if (source) {
-						
+
 						// If the function is a sink and there is a source, return as sink;
 						// If not a sink but still has source, return as a Source CES (possible taint)
 						t = (scope.isSink(ce.name) || scope.isSink(ceName))?'SINK':'SCES';
-						scope.log(t, node, ce.name, source.raw || source.name || source);
+						Scope.log.call(scope, t, node, ce.name, source.raw || source.name || source);
 						return true;
 					}
 					return false;
@@ -143,7 +245,7 @@ Scope.prototype.resolveStatement = function(node) {
 			}
 
 			if (typeof ceName == 'string' && flags.verbose)
-				this.log(t, node, ce.raw);
+				Scope.log.call(this, t, node, ce.raw);
 
 			break;
 		case 'AssignmentExpression':
@@ -157,10 +259,10 @@ Scope.prototype.resolveStatement = function(node) {
 						if (node.right.type == 'Identifier' &&
 							(scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved))) {
 							scope.sinks.push(names);
-							scope.log('SASSIGN', node, names.length==1?names[0]:names, value);
+							Scope.log.call(scope, 'SASSIGN', node, names.length==1?names[0]:names, value);
 						} else if (source = scope.resolveSource(value)) {
 							scope.sources[names] = source;
-							scope.log('SOURCE', node, names.length==1?names[0]:names, source);
+							Scope.log.call(scope, 'SOURCE', node, names.length==1?names[0]:names, source);
 						}
 					}
 				}
@@ -180,12 +282,12 @@ Scope.prototype.resolveStatement = function(node) {
 			});
 
 			if (value)
-				this.log('ASSIGN', node, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
+				Scope.log.call(this, 'ASSIGN', node, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
 			break;
 		case 'FunctionDeclaration':
 			var func = scope.resolveFunctionExpression(node);
 
-			this.log('FUNC', node, func.name);
+			Scope.log.call(this, 'FUNC', node, func.name);
 			break;
 		case 'IfStatement':
 			this.resolveExpression(node.test);
@@ -210,9 +312,9 @@ Scope.prototype.resolveStatement = function(node) {
 			});
 			break;
 		case 'SwitchStatement':
-			this.log('SWITCH', node);
+			Scope.log.call(this, 'SWITCH', node);
 			node.cases.forEach(function (i) {
-				scope.log('CASE', node);
+				Scope.log.call(scope, 'CASE', node);
 				i.consequent.forEach(function (statement) {
 					scope.resolveStatement(statement.expression || statement);
 				});
@@ -249,7 +351,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			return {};
 		case 'ArrayExpression':
 			var array = scope.resolveArrayExpression(right);
-			this.log('ARRAY', right, array);
+			Scope.log.call(scope, 'ARRAY', right, array);
 			return array;
 		case 'ConditionalExpression':
 		case 'LogicalExpression':
@@ -282,7 +384,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 							// If not a sink but still has source, return as a Source CES (possible taint)
 
 							t = (scope.isSink(ce.name) || scope.isSink(ceName))?'SINK':'SCES';
-							scope.log(t, right, ce.name, source.raw || source.name || source);
+							Scope.log.call(scope, t, right, ce.name, source.raw || source.name || source);
 						}
 					});
 				}
@@ -291,7 +393,8 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 					isSourceCB(ceName, t == 'SCE');
 			}
 
-			this.log(t, right, ce.raw, typeof ceName == 'string'?ceName:{});
+			if (typeof ceName == 'string' && flags.verbose)
+				Scope.log.call(this, t, right, ce.raw);
 
 			return ce;
 		case 'MemberExpression': // a.b.c.d
@@ -314,10 +417,10 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 					if (resolved && typeof resolved == 'string') {
 						if (scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved)) {
 							scope.sinks.push(names);
-							scope.log('SASSIGN', right, names.length==1?names[0]:names, value);
+							Scope.log.call(scope, 'SASSIGN', right, names.length==1?names[0]:names, value);
 						} else if (source = this.resolveSource(value)) {
 							scope.sources[names] = source;
-							scope.log('SOURCE', right, names.length==1?names[0]:names, source);
+							Scope.log.call(scope, 'SOURCE', right, names.length==1?names[0]:names, source);
 						}
 					}
 				}
@@ -337,7 +440,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			});
 
 			if (value)
-				this.log('ASSIGN', right, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
+				Scope.log.call(this, 'ASSIGN', right, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
 			
 			return value;
 	}
@@ -440,16 +543,16 @@ Scope.prototype.resolveFunctionExpression = function(node, newScope) {
 
 	scope.vars[fe.name] = fe;
 	fe.scope.traverse(fe.body, function(node) {
-		// Push scope.log. We don't want line 466 to log anything. Then pop it.
-		var l = scope.log; scope.log = function () {};
+		// Push Scope.log. We don't want line 466 to log anything. Then pop it.
+		var l = Scope.log; Scope.log = function () {};
 		var arg = scope.resolveExpression(node.argument);
-		scope.log = l;
+		Scope.log = l;
 
 		if (fe.name) {
 			var source;
 			if (source = scope.resolveSource(arg)) {
 				scope.sources[fe.name] = source;
-				scope.log('RETURN', node, fe.name, arg);
+				Scope.log.call(scope, 'RETURN', node, fe.name, arg);
 			}
 		}
 	});
@@ -465,7 +568,7 @@ Scope.prototype.resolveSource = function(expr) {
 	if (expr.name && expr.arguments && expr.raw) {
 		var s = false;
 		expr.arguments.some(function (i) {
-			s = resolveSource(i);
+			s = scope.resolveSource(i);
 			return !!s;
 		});
 		return s;
@@ -495,7 +598,7 @@ Scope.prototype.traverse = function(ast, returnCB) {
 	
 	if (Scope.createNewScope)
 		Scope.createNewScope();
-	scope.log('SOURCES', ast, scope.sources);
+	Scope.log.call(this, 'SOURCES', ast, scope.sources);
 
 	if (ast.type == 'BlockStatement'){
 		(ast.body || [ast]).forEach(function (node) {
@@ -551,6 +654,7 @@ Scope.prototype.isSource = function(name) {
 	if (typeof name != 'string')
 		return false;
 	for (var i in this.sources) {
+		console.log(name, i);
 		if (name.search(this.sources[i]) === 0) {
 			return true;
 		}

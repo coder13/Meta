@@ -11,6 +11,6 @@
 	"require\\([\\']hapi[\\']\\)\\.\\w+",
 	"require\\([\\']express[\\']\\)\\.\\w+"
 ],
-"sources": [
-	{"process.argv": "process.argv"}
-]}
+"sources": {
+	"process.argv": "process.argv"
+}}

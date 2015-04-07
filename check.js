@@ -11,6 +11,8 @@ var fs = require('fs'),
 	util = require('util'),
 	Scope = require('./scope.js');
 
+module.exports.Scope = Scope.Scope;
+
 var Sinks = require('./danger.json').sinks;
 var Sources = require('./danger.json').sources;
 
@@ -32,7 +34,7 @@ module.exports.setFlags = function(newFlags) {
 
 	if (flags.recursive) {
 		// function to handle loading and traversing a file upon require()
-		Scope.custom = require('./custom.js').push(function(scope, node, ce) { // require
+		Scope.custom = Scope.custom.push(function(scope, node, ce) { // require
 			if (ce.name != 'require')
 				return false;
 
@@ -181,14 +183,12 @@ module.exports.setFlags = function(newFlags) {
 			if (flags.recursive)
 				p = 'file://' + path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
 
-
 		// console.log('  ', '[' + type + ']', p, name, value ? value : '');
 			console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
 						colors.grey(p), name, value ? value : '');
 		};
 	}
 
-	module.exports.Scope = Scope.Scope;
 };
 
 // Traverses ast.
