@@ -654,7 +654,7 @@ Scope.prototype.isSource = function(name) {
 	if (typeof name != 'string')
 		return false;
 	for (var i in this.sources) {
-		console.log(name, i);
+		// console.log(name, i);
 		if (name.search(this.sources[i]) === 0) {
 			return true;
 		}
