@@ -99,6 +99,7 @@ module.exports.setFlags = function(newFlags) {
 			return _.find(r, function(i) {
 				var r = name.indexOf(i.source.name + '.') === 0 ||
 						name.indexOf(i.source.name + '(') === 0 ||
+						name.indexOf(i.source.name + '[') === 0 ||
 						name == i.source.name;
 				return r;
 			});
@@ -112,6 +113,9 @@ module.exports.setFlags = function(newFlags) {
 				return;
 			if (!type)
 				return;
+			if (!this.reports)
+				this.reports = [];
+
 			switch(type) {
 				case 'SOURCE':
 					var source = find(this.reports, value);
@@ -150,7 +154,6 @@ module.exports.setFlags = function(newFlags) {
 					if (this.reports.indexOf(source) != -1) {
 						this.reports.splice(this.reports.indexOf(source), 1);
 						
-						// console.log(require('prettyjson').render(source));
 						reports.push(source);
 					}
 					break;
@@ -183,7 +186,6 @@ module.exports.setFlags = function(newFlags) {
 			if (flags.recursive)
 				p = 'file://' + path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
 
-		// console.log('  ', '[' + type + ']', p, name, value ? value : '');
 			console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
 						colors.grey(p), name, value ? value : '');
 		};

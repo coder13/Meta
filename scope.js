@@ -15,6 +15,17 @@ var fs = require('fs'),
 	resolve = require('resolve'),
 	util = require('util');
 
+// Global initial list of sources and sinks
+var Sinks = require('./danger.json').sinks;
+var Sources = require('./danger.json').sources;
+
+module.exports.flags = flags = {
+	verbose: false,
+	recursive: false,
+	json: true,
+	debug: false
+};
+
 var custom = module.exports.custom = [
 function(scope, node, ce) { // http.get
 	var ceName = scope.resolve(ce.name);
@@ -24,21 +35,19 @@ function(scope, node, ce) { // http.get
 	
 	var func = ce.arguments[1];
 
-	function function_name (argument) {
-		// body...
-	}c.scope.sources.push(func.params[1]);
-	func.scope.log('SOURCE', node, false, func.params[1]);
+	scope.sources[func.params[1]] = func.params[1];
+	Scope.log.call(func, 'SOURCE', node, false, func.params[1]);
 	traverse(func.body, func.scope, returnCB);
 	return true;
 }, function (scope, node, ce) {
 	var ceName = scope.resolve(ce.name);
-	if (ceName != "require('http').createServer"){
+	if (ceName != "require('http').createServer") {
 		return false;
 	}
 
 	var func = ce.arguments[0];
-	func.scope.sources.push(func.params[0]);
-	func.scope.log('SOURCE', node, false, func.params[0]);
+	func.scope.sources[func.params[0]] = func.params[0];
+	Scope.log.call(func, 'SOURCE', node, false, func.params[0]);
 	traverse(func.body, func.scope, returnCB);
 	return true;
 }, function(scope, node, ce) {// (new require('hapi').server()).route()
@@ -76,8 +85,8 @@ function(scope, node, ce) { // http.get
 		var func = ce.arguments[1];
 
 		if (func && func.scope) {
-			func.scope.sources.push(func.params[0]);
-			func.scope.log('SOURCE', node, false, func.params[0]);
+			func.scope.sources[func.params[0]] = func.params[0];
+			Scope.log.call(func, 'SOURCE', node, false, func.params[0]);
 			traverse(func.body, func.scope, returnCB);
 
 		}
@@ -93,8 +102,8 @@ function(scope, node, ce) { // http.get
 	
 	var func = ce.arguments[2]; // the callback
 	if (func && func.scope) {
-		func.scope.sources.push(func.params[1]); // the 2nd argument is the source
-		func.scope.log('SOURCE', node, false, func.params[1]);
+		func.scope.sources[func.params[1]] = func.params[1]; // the 2nd argument is the source
+		Scope.log.call(func, 'SOURCE', node, false, func.params[1]);
 
 		traverse(func.body, func.scope, returnCB);
 	}
@@ -103,30 +112,20 @@ function(scope, node, ce) { // http.get
 
 var returnCB = function(node) {
 	// Push scope.log. We don't want line 466 to log anything. Then pop it.
-	var l = scope.log; scope.log = function () {};
+	var l = Scope.log; scope.log = function () {};
 	var arg = scope.resolveExpression(node.argument);
 	scope.log = l;
 
-	var resolved = scope.resolve(arg);
+	var resolved = this.resolve(arg);
 	if (resolved && typeof resolved == 'string') {
 		if (scope.isSource(resolved.name || resolved) || scope.isSource(arg.name || arg)) {
 			if (fe.name)
-				scope.sources.push(fe.name);
-			scope.log('RETURN', node, fe.name, arg, resolved);
+				scope.sources[fe.name] = fe.name;
+			Scope.log(this, 'RETURN', node, fe.name, arg, resolved);
 		}
 	}
 };
 
-// Global initial list of sources and sinks
-var Sinks = require('./danger.json').sinks;
-var Sources = require('./danger.json').sources;
-
-module.exports.flags = flags = {
-	verbose: false,
-	recursive: false,
-	json: true,
-	debug: false
-};
 
 function Scope (scope) {
 	this.vars = scope.vars || {};
@@ -154,16 +153,11 @@ Scope.prototype.track = function(variable) {
 
 	var expr = this.resolveExpression(variable.init, function(value) {
 		if (value) {
-			// if a = process.argv
-			// resolve(a) will result in process.argv
-			// although a should already be a source, this is safer
-			// console.log(value, scope.sources);
-			var resolved = scope.resolve(value);
-			if (resolved && typeof resolved == 'string') {
-				if (scope.isSource(resolved.name || resolved) || scope.isSource(value.name || value)) {
-					scope.sources[name] = value;
-					Scope.log.call(scope, 'SOURCE', variable, name, value);
-				}
+			
+			var source = scope.resolveSource(value);
+			if (source) {
+				scope.sources[name] = source;
+				Scope.log.call(scope, 'SOURCE', variable, name, source);
 			}
 		}
 
@@ -171,7 +165,7 @@ Scope.prototype.track = function(variable) {
 	
 	this.vars[name] = expr;
 
-	Scope.log.call(this, 'VAR', variable, name, expr.raw || expr.name || expr);
+	Scope.log.call(this, 'VAR', variable, name, expr ? (expr.raw || expr.name || expr) : undefined);
 };
 
 
@@ -231,6 +225,7 @@ Scope.prototype.resolveStatement = function(node) {
 				ce.arguments.some(function (arg) {
 					if (arg.params && arg.body && arg.scope)
 						return false; // skips callbacks
+
 					var source = scope.resolveSource(arg);
 					if (source) {
 
@@ -418,7 +413,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 						if (scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved)) {
 							scope.sinks.push(names);
 							Scope.log.call(scope, 'SASSIGN', right, names.length==1?names[0]:names, value);
-						} else if (source = this.resolveSource(value)) {
+						} else if (source = scope.resolveSource(value)) {
 							scope.sources[names] = source;
 							Scope.log.call(scope, 'SOURCE', right, names.length==1?names[0]:names, source);
 						}
@@ -607,7 +602,7 @@ Scope.prototype.traverse = function(ast, returnCB) {
 			try {
 				scope.resolveStatement(node);
 				if (returnCB && node.type == 'ReturnStatement') {
-					returnCB(node);
+					returnCB.call(this, node);
 				}
 			} catch (e) {
 				if (flags.debug) {
@@ -654,7 +649,9 @@ Scope.prototype.isSource = function(name) {
 	if (typeof name != 'string')
 		return false;
 	for (var i in this.sources) {
-		// console.log(name, i);
+		if (typeof this.sources[i] != 'string')
+			return false;
+		// console.log('\t', name, i, this.sources[i]);
 		if (name.search(this.sources[i]) === 0) {
 			return true;
 		}
