@@ -52,8 +52,8 @@ module.exports.setFlags = function(newFlags) {
 				return;
 			}
 
-			if (['hapi', 'express', 'jade'].indexOf(file) != -1 || file.indexOf('hapi') != -1)
-				return; // just ignore these things. They're large and have prewritten handlers anyways.
+			if (['hapi', 'express', 'jade', 'mysql', 'consolidate'].indexOf(file) != -1 || file.indexOf('hapi') != -1)
+				return; // just ignore these things. They have prewritten handlers anyways.
 
 			var r;
 			scope.resolvePath(file, function (pkg) {
@@ -72,10 +72,7 @@ module.exports.setFlags = function(newFlags) {
 						console.log(' ---- '.yellow, pkg);
 
 					var newScope = new Scope.Scope({
-						sinks: Sinks,
-						sources: Sources,
 						file: pkg,
-						log: scope.log,
 					});
 					traverse(ast, newScope);
 
@@ -95,13 +92,13 @@ module.exports.setFlags = function(newFlags) {
 		Scope.Scope.createNewScope = function() {};
 		Scope.Scope.leaveScope = function() {};
 
-		find = function(r, name) {
-			return _.find(r, function(i) {
-				var r = name.indexOf(i.source.name + '.') === 0 ||
+		find = function(reps, name) {
+			return _.find(reps, function(i) {
+				var rtrn = name.indexOf(i.source.name + '.') === 0 ||
 						name.indexOf(i.source.name + '(') === 0 ||
 						name.indexOf(i.source.name + '[') === 0 ||
 						name == i.source.name;
-				return r;
+				return rtrn;
 			});
 		};
 
@@ -113,46 +110,49 @@ module.exports.setFlags = function(newFlags) {
 				return;
 			if (!type)
 				return;
-			if (!this.reports)
-				this.reports = [];
 
+			var scope = this;
+
+			var file = this.file || this.scope.file;
+			var p = pos(node);
+			var p = path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), file) + ':' + p;
 			switch(type) {
 				case 'SOURCE':
-					var source = find(this.reports, value);
+					var source = find(scope.reports, value);
 					if (!source)
-						this.reports.push({
+						scope.reports.push({
 							source: {
 								name: value,
-								line: this.file + ':' + pos(node)
+								line: p
 							}
 						});
 					break;
 				case 'SCE':
 				case 'SCES': // Possible taint: call expression containing the source.
-					var source = find(this.reports, value);
+					var source = find(scope.reports, value);
 					if (source) {
 						if (!source.chain)
 							source.chain = [];
 						source.chain.push({
 							name: name,
 							value: value,
-							line: this.file + ':' + pos(node)
+							line: p
 						});
 					}
 					break;
 				case 'SASSIGN':
 					break;
 				case 'SINK':
-					var source = find(this.reports, value);
+					var source = find(scope.reports, value);
 					if (source)
 						source.sink = {
 							name: name,
-							line: this.file + ':' + pos(node)
+							line: p
 						};
 
 					// Flush the report. After finding the sink, we don't want to track it anymore.
-					if (this.reports.indexOf(source) != -1) {
-						this.reports.splice(this.reports.indexOf(source), 1);
+					if (scope.reports.indexOf(source) != -1) {
+						scope.reports.splice(this.reports.indexOf(source), 1);
 						
 						reports.push(source);
 					}
@@ -184,10 +184,12 @@ module.exports.setFlags = function(newFlags) {
 		Scope.Scope.log = function(type, node, name, value) {
 			var p = pos(node);
 			if (flags.recursive)
-				p = 'file://' + path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
+				p = path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
 
-			console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
-						colors.grey(p), name, value ? value : '');
+				console.log('  ', '[' + type + ']', p, name, value ? value : '');
+
+			// console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
+			// 			colors.grey(p), name, value ? value : '');
 		};
 	}
 
@@ -203,7 +205,7 @@ traverse = module.exports.traverse = function(ast, scope) {
 	if (flags.verbose) {
 		if (!flags.json)
 			Scope.Scope.createNewScope();
-		scope.log('SOURCES', ast, scope.sources);
+		Scope.Scope.log.call(scope, 'SOURCES', ast, scope.sources);
 	}
 
 	ast.body.forEach(function (node) {

@@ -34,10 +34,9 @@ function(scope, node, ce) { // http.get
 	}
 	
 	var func = ce.arguments[1];
-
 	scope.sources[func.params[1]] = func.params[1];
-	Scope.log.call(func, 'SOURCE', node, false, func.params[1]);
-	traverse(func.body, func.scope, returnCB);
+	Scope.log.call(func.scope, 'SOURCE', node, false, func.params[1]);
+	traverse(func.body, func.scope, returnCB(func));
 	return true;
 }, function (scope, node, ce) {
 	var ceName = scope.resolve(ce.name);
@@ -47,8 +46,8 @@ function(scope, node, ce) { // http.get
 
 	var func = ce.arguments[0];
 	func.scope.sources[func.params[0]] = func.params[0];
-	Scope.log.call(func, 'SOURCE', node, false, func.params[0]);
-	traverse(func.body, func.scope, returnCB);
+	Scope.log.call(func.scope, 'SOURCE', node, false, func.params[0]);
+	traverse(func.body, func.scope, returnCB(func));
 	return true;
 }, function(scope, node, ce) {// (new require('hapi').server()).route()
 	if (ce.name.indexOf("require('hapi').Server()") === 0)
@@ -68,7 +67,7 @@ function(scope, node, ce) { // http.get
 		if (func && func.scope) {
 			func.scope.sources[func.params[0]] = func.params[0];
 			Scope.log.call('SOURCE', node, false, func.params[0]);
-			traverse(func.body, func.scope, returnCB);
+			traverse(func.body, func.scope, returnCB(func));
 		}
 	}
 
@@ -81,13 +80,14 @@ function(scope, node, ce) { // http.get
 	if (['post', 'get'].indexOf(ceName.split('.').slice(-1)[0]) == -1)
 		return false;
 
+
 	if (ce.arguments && ce.arguments[1]) {
 		var func = ce.arguments[1];
-
 		if (func && func.scope) {
+
 			func.scope.sources[func.params[0]] = func.params[0];
-			Scope.log.call(func, 'SOURCE', node, false, func.params[0]);
-			traverse(func.body, func.scope, returnCB);
+			Scope.log.call(func.scope, 'SOURCE', node, false, func.params[0]);
+			traverse(func.body, func.scope, returnCB(func));
 
 		}
 	}
@@ -103,27 +103,28 @@ function(scope, node, ce) { // http.get
 	var func = ce.arguments[2]; // the callback
 	if (func && func.scope) {
 		func.scope.sources[func.params[1]] = func.params[1]; // the 2nd argument is the source
-		Scope.log.call(func, 'SOURCE', node, false, func.params[1]);
+		Scope.log.call(func.scope, 'SOURCE', node, false, func.params[1]);
 
-		traverse(func.body, func.scope, returnCB);
+		traverse(func.body, func.scope, returnCB(func));
 	}
 	return true;
 }];
 
-var returnCB = function(node) {
-	// Push scope.log. We don't want line 466 to log anything. Then pop it.
-	var l = Scope.log; scope.log = function () {};
-	var arg = scope.resolveExpression(node.argument);
-	scope.log = l;
+var returnCB = function (fe, node) {
+	var scope = this;
+	return function(node) {
+		// Push scope.log. We don't want line 466 to log anything. Then pop it.
+		var l = Scope.log; Scope.log = function () {};
+		var arg = scope.resolveExpression(node.argument);
+		Scope.log = l;
 
-	var resolved = this.resolve(arg);
-	if (resolved && typeof resolved == 'string') {
-		if (scope.isSource(resolved.name || resolved) || scope.isSource(arg.name || arg)) {
-			if (fe.name)
-				scope.sources[fe.name] = fe.name;
-			Scope.log(this, 'RETURN', node, fe.name, arg, resolved);
+		var source = scope.resolveSource(arg);
+		if (source) {
+			scope.source[fe.name] = fe.name;
+			Scope.log.call(this, 'RETURN', node, fe.names)
 		}
-	}
+
+	};
 };
 
 
@@ -133,15 +134,14 @@ function Scope (scope) {
 	if (!this.vars.exports) this.vars.exports = {};
 	if (!this.vars.global) this.vars.global = {};
 	// dynamic list of sources and sinks as variables get set to them
-	this.sources = scope.sources || Sources;
-	this.sinks = scope.sinks || Sinks;
-	this.log = Scope.log;
+	this.sources = scope.sources || JSON.parse(JSON.stringify(Sources)); // clever clone
+	this.sinks = scope.sinks || Sinks.slice(0); // another clever clone but for arrays
 	this.file = scope.file;
 
 	if (!Scope.baseFile)
 		Scope.baseFile = scope.file;
-
-	this.reports = scope.reports || [{source: {name: 'process.argv'}}];
+	
+	this.reports = scope.reports || [{source: {name: 'process.argv', line: path.relative(Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file)}}];
 }
 
 Scope.log = function(type, node, name, value) {};
@@ -255,9 +255,12 @@ Scope.prototype.resolveStatement = function(node) {
 							(scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved))) {
 							scope.sinks.push(names);
 							Scope.log.call(scope, 'SASSIGN', node, names.length==1?names[0]:names, value);
-						} else if (source = scope.resolveSource(value)) {
-							scope.sources[names] = source;
-							Scope.log.call(scope, 'SOURCE', node, names.length==1?names[0]:names, source);
+						} else {
+							var source = scope.resolveSource(value);
+							if (source) {
+								scope.sources[names] = source;
+								Scope.log.call(scope, 'SOURCE', node, names.length==1?names[0]:names, source);
+							}
 						}
 					}
 				}
@@ -279,10 +282,19 @@ Scope.prototype.resolveStatement = function(node) {
 			if (value)
 				Scope.log.call(this, 'ASSIGN', node, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
 			break;
-		case 'FunctionDeclaration':
-			var func = scope.resolveFunctionExpression(node);
+		case 'FunctionDeclaration':			
+			if (Scope.createNewScope)
+				Scope.createNewScope();
+
+			var func = scope.resolveFunctionExpression(node, this);
+
+			Scope.log.call(this, 'SOURCES', node, scope.sources.keys);
 
 			Scope.log.call(this, 'FUNC', node, func.name);
+			
+			if (Scope.leaveScope())
+				Scope.leaveScope();
+
 			break;
 		case 'IfStatement':
 			this.resolveExpression(node.test);
@@ -401,7 +413,14 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 		case 'ObjectExpression': // json objects
 			return scope.resolveObjectExpression(right);
 		case 'FunctionExpression': // functions
-			var fe = scope.resolveFunctionExpression(right);
+			if (Scope.createNewScope)
+				Scope.createNewScope();
+
+			var fe = scope.resolveFunctionExpression(right, this);
+			
+			if (Scope.leaveScope())
+				Scope.leaveScope();
+
 			return fe;
 		case 'AssignmentExpression': // a = b
 			var assign = scope.resolveAssignment(right);
@@ -413,9 +432,12 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 						if (scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved)) {
 							scope.sinks.push(names);
 							Scope.log.call(scope, 'SASSIGN', right, names.length==1?names[0]:names, value);
-						} else if (source = scope.resolveSource(value)) {
-							scope.sources[names] = source;
-							Scope.log.call(scope, 'SOURCE', right, names.length==1?names[0]:names, source);
+						} else {
+							var source = scope.resolveSource(value);
+							if (source) {
+								scope.sources[names] = source;
+								Scope.log.call(scope, 'SOURCE', right, names.length==1?names[0]:names, source);
+							}
 						}
 					}
 				}
@@ -479,7 +501,9 @@ Scope.prototype.resolveCallExpression = function(node) {
 
 	if (node.arguments && node.arguments.length > 0){
 		_resolveRight = function(expr) {
-			return scope.resolveExpression(expr, function() {});
+			return scope.resolveExpression(expr, function() {
+
+			});
 		};
 		ce.arguments = _.map(node.arguments, _resolveRight);
 	}
@@ -531,12 +555,14 @@ Scope.prototype.resolveFunctionExpression = function(node, newScope) {
 		body: node.body
 	};
 
-	fe.scope = new Scope(this);
+	fe.scope = new Scope(newScope);
 	for (var i in fe.params) {
 		fe.scope.addVar(fe.params[i], undefined);
 	}
 
-	scope.vars[fe.name] = fe;
+	if (fe.name != '') // Catches defining nameless functions as callbacks
+		scope.vars[fe.name] = fe;
+
 	fe.scope.traverse(fe.body, function(node) {
 		// Push Scope.log. We don't want line 466 to log anything. Then pop it.
 		var l = Scope.log; Scope.log = function () {};
@@ -544,8 +570,9 @@ Scope.prototype.resolveFunctionExpression = function(node, newScope) {
 		Scope.log = l;
 
 		if (fe.name) {
-			var source;
-			if (source = scope.resolveSource(arg)) {
+			var source = scope.resolveSource(arg);
+			if (source) {
+		
 				scope.sources[fe.name] = source;
 				Scope.log.call(scope, 'RETURN', node, fe.name, arg);
 			}
@@ -559,20 +586,23 @@ Scope.prototype.resolveFunctionExpression = function(node, newScope) {
 // and returns the part of it that is the source
 Scope.prototype.resolveSource = function(expr) {
 	var scope = this;
+	
 	// specifically handles call expressions
 	if (expr.name && expr.arguments && expr.raw) {
-		var s = false;
+		var source = false;
 		expr.arguments.some(function (i) {
-			s = scope.resolveSource(i);
-			return !!s;
+			source = scope.resolveSource(i);
+			return !!source;
 		});
-		return s;
+		return source;
+	} else if (expr.body && expr.params && expr.scope) {
+		return false;
 	}
 
 	var resolved = this.resolve(expr);
-	var source = resolved;
 
 	if (typeof expr == 'object' || typeof resolved == 'object') {
+		var source;
 		(traverseJSON(expr, function (a) {
 			if (!a) return false;
 			source = scope.resolveSource(a);
@@ -591,19 +621,16 @@ Scope.prototype.resolveSource = function(expr) {
 Scope.prototype.traverse = function(ast, returnCB) {
 	var scope = this;
 	
-	if (Scope.createNewScope)
-		Scope.createNewScope();
-	Scope.log.call(this, 'SOURCES', ast, scope.sources);
-
 	if (ast.type == 'BlockStatement'){
 		(ast.body || [ast]).forEach(function (node) {
 			if (node.type == 'ExpressionStatement')
 				node = node.expression;
 			try {
 				scope.resolveStatement(node);
-				if (returnCB && node.type == 'ReturnStatement') {
-					returnCB.call(this, node);
-				}
+				if (returnCB)
+					if (returnCB && node.type == 'ReturnStatement') {
+						returnCB.call(this, node);
+					}
 			} catch (e) {
 				if (flags.debug) {
 					console.error('Error reading line:'.red, scope.file + ':' + pos(node));
@@ -651,8 +678,10 @@ Scope.prototype.isSource = function(name) {
 	for (var i in this.sources) {
 		if (typeof this.sources[i] != 'string')
 			return false;
-		// console.log('\t', name, i, this.sources[i]);
-		if (name.search(this.sources[i]) === 0) {
+		if (name.indexOf(this.sources[i] + '.') === 0 ||
+			name.indexOf(this.sources[i] + '(') === 0 ||
+			name.indexOf(this.sources[i] + '[') === 0 ||
+			name == this.sources[i]) {
 			return true;
 		}
 	}
