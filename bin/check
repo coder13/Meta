@@ -44,7 +44,8 @@ check.setFlags({
 	verbose: argv.v,
 	recursive: argv.r,
 	json: !argv.j && !argv.v,
-	debug: argv.d || true
+	debug: argv.d || true,
+	pretty: argv.p
 });
 var Scope = check.Scope;
 
@@ -60,9 +61,13 @@ if (ast) {
 	check.traverse(ast, scope);
 
 	if (check.flags.json) {
-		if (check.reports.length !== 0){
-			console.log(require('prettyjson').render(check.reports));
-		} else
-			console.log(colors.green('No vulneralbities found'));
+		if (argv.p) {
+			if (check.reports.length !== 0)
+				console.log(require('prettyjson').render(check.reports));
+			else
+				console.log(colors.green('No vulneralbities found'));
+		} else {
+			console.log(check.reports);	
+		}
 	}
 }

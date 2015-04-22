@@ -77,6 +77,10 @@ module.exports.setFlags = function(newFlags) {
 					traverse(ast, newScope);
 
 					r = newScope.vars.module.exports;
+					newScope.sinks.forEach(function (i) {
+						if (i.indexOf('module.exports.') === 0)
+							scope.sinks.push(i.replace('module.exports', 'a'))
+					});
 
 				} else
 					if (flags.verbose && !flags.json)

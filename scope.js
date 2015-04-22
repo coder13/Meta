@@ -4,7 +4,7 @@
 		CE			- Call Expression (functions)
 		SCE			- (source) Call Expression
 		SCES		- (source) Call Expression Statement
-		SASSIGN		- Assign as a sink
+		SINK		- Assign as a sink
 */
 
 var fs = require('fs'),
@@ -118,7 +118,7 @@ var returnCB = function (fe, node) {
 		var arg = scope.resolveExpression(node.argument);
 		Scope.log = l;
 
-		var source = scope.resolveSource(arg);
+		var source = scope.resolveTree(scope.isSource, arg);
 		if (source) {
 			scope.source[fe.name] = fe.name;
 			Scope.log.call(this, 'RETURN', node, fe.names)
@@ -133,39 +133,54 @@ function Scope (scope) {
 	if (!this.vars.module) this.vars.module = {exports: {}};
 	if (!this.vars.exports) this.vars.exports = {};
 	if (!this.vars.global) this.vars.global = {};
+
 	// dynamic list of sources and sinks as variables get set to them
 	this.sources = scope.sources || JSON.parse(JSON.stringify(Sources)); // clever clone
 	this.sinks = scope.sinks || Sinks.slice(0); // another clever clone but for arrays
+
 	this.file = scope.file;
 
 	if (!Scope.baseFile)
 		Scope.baseFile = scope.file;
 	
-	this.reports = scope.reports || [{source: {name: 'process.argv', line: path.relative(Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file)}}];
+	file = path.relative(Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file);
+	this.reports = scope.reports || [{source: {name: 'process.argv', line: file + ':0'}}];
 }
 
 Scope.log = function(type, node, name, value) {};
 
 // handles creation of variables. 
 Scope.prototype.track = function(variable) {
+	debugger;
 	var scope = this;
 	var name = variable.id.name;
 
+	var type = "VAR";
 	var expr = this.resolveExpression(variable.init, function(value) {
-		if (value) {
-			
-			var source = scope.resolveSource(value);
-			if (source) {
-				scope.sources[name] = source;
-				Scope.log.call(scope, 'SOURCE', variable, name, source);
-			}
+		if (!value) {
+			console.log('value was undefined for some reason');
+			throw new Exception('value was undefined');
 		}
 
+		var danger;
+		if (variable.type == 'Identifier') {
+			danger = scope.resolveTree(scope.isSink, value);
+			if (danger) {
+				scope.sinks.push(name);
+				type = 'SINK';
+			}
+		} else {
+			danger = scope.resolveTree(scope.isSource, value);
+			if (danger) {
+				scope.sources[name] = scope.resolve(name);
+				type = 'SOURCE';
+			}
+		}
 	});
 	
 	this.vars[name] = expr;
 
-	Scope.log.call(this, 'VAR', variable, name, expr ? (expr.raw || expr.name || expr) : undefined);
+	Scope.log.call(this, type, variable, name, expr ? (expr.raw || expr.name || expr) : undefined);
 };
 
 
@@ -226,7 +241,7 @@ Scope.prototype.resolveStatement = function(node) {
 					if (arg.params && arg.body && arg.scope)
 						return false; // skips callbacks
 
-					var source = scope.resolveSource(arg);
+					var source = scope.resolveTree(scope.isSource, arg);
 					if (source) {
 
 						// If the function is a sink and there is a source, return as sink;
@@ -246,22 +261,31 @@ Scope.prototype.resolveStatement = function(node) {
 		case 'AssignmentExpression':
 			var assign = scope.resolveAssignment(node);
 			var names = assign.names;
+			var type = 'ASSIGN';
 			var value = this.resolveExpression(assign.value, function(value, isSource) {
-				if (value) {
-					var resolved = scope.resolve(value);
-					var source;
-					if (resolved && typeof resolved == 'string') {
-						if (node.right.type == 'Identifier' &&
-							(scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved))) {
-							scope.sinks.push(names);
-							Scope.log.call(scope, 'SASSIGN', node, names.length==1?names[0]:names, value);
-						} else {
-							var source = scope.resolveSource(value);
-							if (source) {
-								scope.sources[names] = source;
-								Scope.log.call(scope, 'SOURCE', node, names.length==1?names[0]:names, source);
-							}
-						}
+				if (!value) {
+					console.log('value was undefined for some reason');
+					throw new Exception('value was undefined');
+				}
+				debugger;
+
+				var danger;
+				if (assign.value.type == 'Identifier') {
+					danger = scope.resolveTree(scope.isSink, value);
+					if (danger) {
+						names.forEach(function (name) {
+							scope.sinks.push(name);
+						});
+						type = 'SINK'
+					}
+				} else {
+					debugger;
+					danger = scope.resolveTree(scope.isSource, value);
+					if (danger) {
+						names.forEach(function (name) {
+							scope.sources[name] = scope.resolve(value);
+						});
+						type = 'SOURCE';
 					}
 				}
 			});
@@ -269,18 +293,14 @@ Scope.prototype.resolveStatement = function(node) {
 			names.forEach(function(name) {
 				try {
 					if (node.left.type == 'MemberExpression') {
-						eval('scope.vars.' + name + ' = ' + JSON.stringify(value));
+						v = typeof value == "object" ? JSON.stringify(value) : String(value);
+						eval('scope.vars.' + name + ' = "' + v + '"');
 					}
-				} catch (e) {
-					// if (flags.debug) {
-					// 	console.error('Error reading line:'.red, scope.file + ':' + pos(node));
-					// 	console.error(e.stack);
-					// }
-				}
+				} catch (e) {}
 			});
 
 			if (value)
-				Scope.log.call(this, 'ASSIGN', node, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
+				Scope.log.call(this, type, node, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
 			break;
 		case 'FunctionDeclaration':			
 			if (Scope.createNewScope)
@@ -343,7 +363,9 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 	var scope = this;
 	switch (right.type) {
 		case 'Literal': // string, number, etc..
-			return "'" + eval(right.raw) + "'";
+			return typeof right.value == 'string' ?
+				"'" + right.value + "'" : right.value;
+			// return "'" + eval(right.raw) + "'";
 		case 'Identifier': // variables, etc...
 			// if variable is being set to a bad variable, mark it too as bad
 			if (isSourceCB) {
@@ -385,8 +407,8 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 					ce.arguments.some(function (arg) {
 						if (arg.params && arg.body && arg.scope)
 							return false; // skips callbacks
-						var source = scope.resolveSource(arg);
-						if (source) { // I do want to set source to resolveSource(arg)
+						var source = scope.resolveTree(scope.isSource, arg);
+						if (source) { // I do want to set source to resolveTree(scope.isSource, arg)
 							// If the function is a sink and there is a source, return as sink;
 							// If not a sink but still has source, return as a Source CES (possible taint)
 
@@ -425,31 +447,38 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 		case 'AssignmentExpression': // a = b
 			var assign = scope.resolveAssignment(right);
 			var names = assign.names;
+			var type = 'ASSIGN';
 			var value = this.resolveExpression(assign.value, function(value, isSource) {
-				if (value) {
-					var resolved = scope.resolve(value); 
-					if (resolved && typeof resolved == 'string') {
-						if (scope.isSink(value.name || value) || scope.isSink(resolved.name || resolved)) {
-							scope.sinks.push(names);
-							Scope.log.call(scope, 'SASSIGN', right, names.length==1?names[0]:names, value);
-						} else {
-							var source = scope.resolveSource(value);
-							if (source) {
-								scope.sources[names] = source;
-								Scope.log.call(scope, 'SOURCE', right, names.length==1?names[0]:names, source);
-							}
-						}
+				if (!value) {
+					console.log('value was undefined for some reason');
+					throw new Exception('value was undefined');
+				}
+
+				var danger;
+				if (assign.value.type == 'Identifier') {
+					danger = scope.resolveTree(scope.isSink, value);
+					if (danger) {
+						names.forEach(function (name) {
+							scope.sinks.push(name);
+						});
+						type = 'SINK'
+					}
+				} else {
+					danger = scope.resolveTree(scope.isSource, value);
+					if (danger) {
+						names.forEach(function (name) {
+							scope.sources.push(name);
+						});
+						type = 'SOURCE';
 					}
 				}
 			});
 
 			names.forEach(function(name) {
 				try {
-					if (right.left.type == 'MemberExpression') {
-						if (scope.vars[name] || scope.vars[name.split('.').slice(-1).join('.')])
-							eval('scope.vars.' + name + ' = ' + JSON.stringify(value));
-						else
-							eval('scope.vars.' + name + ' = ' + JSON.stringify(value));
+					if (node.left.type == 'MemberExpression') {
+						v = typeof value == "object" ? JSON.stringify(value) : String(value);
+						eval('scope.vars.' + name + ' = "' + v + '"');
 					}
 				} catch (e) {
 					
@@ -457,7 +486,7 @@ Scope.prototype.resolveExpression = function(right, isSourceCB) {
 			});
 
 			if (value)
-				Scope.log.call(this, 'ASSIGN', right, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
+				Scope.log.call(this, type, right, names.length==1?names[0]:names, util.inspect(value.raw || value, {depth: 1}));
 			
 			return value;
 	}
@@ -570,7 +599,7 @@ Scope.prototype.resolveFunctionExpression = function(node, newScope) {
 		Scope.log = l;
 
 		if (fe.name) {
-			var source = scope.resolveSource(arg);
+			var source = scope.resolveTree(scope.isSource, arg);
 			if (source) {
 		
 				scope.sources[fe.name] = source;
@@ -584,17 +613,17 @@ Scope.prototype.resolveFunctionExpression = function(node, newScope) {
 
 // complicated code to check if the argument is a source 
 // and returns the part of it that is the source
-Scope.prototype.resolveSource = function(expr) {
+Scope.prototype.resolveTree = function(func, expr) {
 	var scope = this;
 	
 	// specifically handles call expressions
 	if (expr.name && expr.arguments && expr.raw) {
-		var source = false;
+		var danger = false;
 		expr.arguments.some(function (i) {
-			source = scope.resolveSource(i);
-			return !!source;
+			danger = scope.resolveTree(func, i);
+			return !!danger;
 		});
-		return source;
+		return danger;
 	} else if (expr.body && expr.params && expr.scope) {
 		return false;
 	}
@@ -602,15 +631,15 @@ Scope.prototype.resolveSource = function(expr) {
 	var resolved = this.resolve(expr);
 
 	if (typeof expr == 'object' || typeof resolved == 'object') {
-		var source;
+		var danger;
 		(traverseJSON(expr, function (a) {
 			if (!a) return false;
-			source = scope.resolveSource(a);
-			return source;
+			danger = scope.resolveTree(func, a);
+			return danger;
 		}));
-		return source;
+		return danger;
 	} else {
-		if (scope.isSource(expr.name || expr) || scope.isSource(resolved.name || resolved))
+		if (func.call(scope, expr.name || expr) || func.call(scope, resolved.name || resolved))
 			return resolved;
 	}
 
