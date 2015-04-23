@@ -1,2 +1,7 @@
 module.exports.e = eval;
-module.exports.args = process.argv;
+
+require('fs').readFile('blah', function(err, data) {
+	
+	module.exports.source = data;
+
+});

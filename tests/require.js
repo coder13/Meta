@@ -1,3 +1,3 @@
 var a = require('./lib/a.js');
 
-a.e(a.args); //a.b.e == eval
+a.e(a.source); //a.b.e == eval

@@ -24,72 +24,12 @@ var flags = module.exports.flags = {
 };
 
 var reports = module.exports.reports = [];
-var lookupTable = {};
 
 module.exports.setFlags = function(newFlags) {
 	Scope.flags.verbose = flags.verbose = newFlags.verbose;
 	Scope.flags.recursive = flags.recursive = newFlags.recursive;
 	Scope.flags.json = flags.json = newFlags.json;
 	Scope.flags.debug = flags.debug = newFlags.debug;
-
-	if (flags.recursive) {
-		// function to handle loading and traversing a file upon require()
-		Scope.custom = Scope.custom.push(function(scope, node, ce) { // require
-			if (ce.name != 'require')
-				return false;
-
-			if (!ce.arguments[0])
-				return;
-
-			var file;
-			if (node.arguments[0].type == 'Literal') {
-				file = node.arguments[0].value;
-			} else if (node.arguments[0].type == 'Identifier') {
-				file = scope.resolve(node.arguments[0].name);
-				if (typeof file != 'string')
-					return;
-			} else {
-				return;
-			}
-
-			if (['hapi', 'express', 'jade', 'mysql', 'consolidate'].indexOf(file) != -1 || file.indexOf('hapi') != -1)
-				return; // just ignore these things. They have prewritten handlers anyways.
-
-			var r;
-			scope.resolvePath(file, function (pkg) {
-				if (!pkg)
-					return;
-
-				// Lookup table is a list of files already looked at.
-				// In static analysis, we only want to look at each file once.
-				if (lookupTable[pkg])
-					return;
-				lookupTable[pkg] = true;
-
-				var ast = astFromFile(pkg);
-				if (ast) {
-					if (flags.verbose && !flags.json)
-						console.log(' ---- '.yellow, pkg);
-
-					var newScope = new Scope.Scope({
-						file: pkg,
-					});
-					traverse(ast, newScope);
-
-					r = newScope.vars.module.exports;
-					newScope.sinks.forEach(function (i) {
-						if (i.indexOf('module.exports.') === 0)
-							scope.sinks.push(i.replace('module.exports', 'a'))
-					});
-
-				} else
-					if (flags.verbose && !flags.json)
-						console.log(' ---- '.yellow, String(pkg).red);
-			});
-		
-			return r;
-		});
-	}
 
 	if (flags.json) {
 		// We don't do anything with these function when outputing json.
@@ -120,6 +60,7 @@ module.exports.setFlags = function(newFlags) {
 			var file = this.file || this.scope.file;
 			var p = pos(node);
 			var p = path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), file) + ':' + p;
+			
 			switch(type) {
 				case 'SOURCE':
 					var source = find(scope.reports, value);
@@ -138,13 +79,27 @@ module.exports.setFlags = function(newFlags) {
 						if (!source.chain)
 							source.chain = [];
 						source.chain.push({
+							type: 'function',
 							name: name,
 							value: value,
 							line: p
 						});
 					}
 					break;
-				case 'SASSIGN':
+				case 'SOURCE_ASSIGN':
+				case 'SINK_ASSIGN':
+					var source = find(scope.reports, value);
+					
+					if (source) {
+						if (!source.chain)
+							source.chain = [];
+						source.chain.push({
+							type: 'assign',
+							name: name,
+							value: value,
+							line: p
+						});
+					}
 					break;
 				case 'SINK':
 					var source = find(scope.reports, value);
@@ -190,10 +145,10 @@ module.exports.setFlags = function(newFlags) {
 			if (flags.recursive)
 				p = path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
 
-				console.log('  ', '[' + type + ']', p, name, value ? value : '');
+				// console.log('  ', '[' + type + ']', p, name, value ? value : '');
 
-			// console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
-			// 			colors.grey(p), name, value ? value : '');
+			console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
+						colors.grey(p), name, value ? value : '');
 		};
 	}
 
