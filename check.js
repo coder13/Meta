@@ -116,6 +116,9 @@ module.exports.setFlags = function(newFlags) {
 						reports.push(source);
 					}
 					break;
+				default:
+					if (flags.debug)
+						console.log(type, p, name, value);
 			}
 			
 		};
@@ -145,10 +148,8 @@ module.exports.setFlags = function(newFlags) {
 			if (flags.recursive)
 				p = path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
 
-				// console.log('  ', '[' + type + ']', p, name, value ? value : '');
-
 			console.log('  ', cs[type]?cs[type]('[' + type + ']'):colors.blue('[' + type + ']'),
-						colors.grey(p), name, value ? value : '');
+						colors.grey(p), name, value ? value :'');
 		};
 	}
 

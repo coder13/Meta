@@ -198,13 +198,13 @@ Scope.prototype.resolve = function(name) {
 
 	if (get(this.vars, name)) {
 		return eval('this.vars.' + name);
-	}
-	else if (name.indexOf('.') != -1) {
+	} else if (name.indexOf('.') != -1) {
 		var s = name.split('.');
 		var r = this.resolve(s.slice(0,-1).join('.'));
 		r = r.raw || r;
 		return r + '.' + s.slice(-1);
-	
+	} else if (name.indexOf('[') != -1 && name.indexOf(']') != -1) {
+		return eval('this.vars.' + name);
 	}
 
 	return name;
@@ -251,7 +251,7 @@ Scope.prototype.resolveStatement = function(node) {
 					if (source) {
 
 						// If the function is a sink and there is a source, return as sink;
-						// If not a sink but still has source, return as a Source CES (possible taint)
+						// If not a sink but still has source, return as a Source CSCESES (possible taint)
 						t = (scope.isSink(ce.name) || scope.isSink(ceName))?'SINK':'SCES';
 						Scope.log.call(scope, t, node, ce.name, scope.sources[source]);
 						return true;
@@ -386,7 +386,7 @@ Scope.prototype.resolveExpression = function(right, name, isSourceCB) {
 			var arg = this.resolveExpression(right.argument, isSourceCB, name);
 			return {};
 		case 'ArrayExpression':
-			var array = scope.resolveArrayExpression(right);
+			var array = scope.resolveArrayExpression(right, name);
 			Scope.log.call(scope, 'ARRAY', right, array);
 			return array;
 		case 'ConditionalExpression':
@@ -423,6 +423,8 @@ Scope.prototype.resolveExpression = function(right, name, isSourceCB) {
 			if (ceName && typeof ceName == 'string') {
 				if (ce.arguments) {
 					ce.arguments.some(function (arg) {
+						if (!arg)
+							return;
 						if (arg.params && arg.body && arg.scope)
 							return false; // skips callbacks
 						var source = scope.resolveTree(scope.isSource, arg);
@@ -486,7 +488,7 @@ Scope.prototype.resolveExpression = function(right, name, isSourceCB) {
 					danger = scope.resolveTree(scope.isSource, value);
 					if (danger) {
 						names.forEach(function (name) {
-							scope.sources.push(name);
+							scope.sources[name] = name;
 						});
 						type = 'SOURCE_ASSIGN';
 					}
@@ -531,9 +533,20 @@ Scope.prototype.resolveAssignment = function(node) {
 
 Scope.prototype.resolveArrayExpression = function(node, name, isSourceCB) {
 	var scope = this;
-	return _.map(node.elements, function(expr) {
-		return scope.resolve(scope.resolveExpression(expr, name, function (source) {
-			console.log('I need work');
+	return _.map(node.elements, function(expr, index) {
+		return scope.resolve(scope.resolveExpression(expr, name, function (right) {
+			danger = scope.resolveTree(scope.isSink, right);
+			if (danger) {
+				scope.sinks.push(name + '[' + index + ']');
+				Scope.log.call(scope, 'SINK', node, name + '[' + index + ']');
+			} else {
+				danger = scope.resolveTree(scope.isSource, right);
+				if (danger) {
+					scope.sources[name + '[' + index + ']'] = scope.resolve(right);
+					Scope.log.call(scope, 'SOURCE', node, name + '[' + index + ']', scope.resolve(right));
+				}
+			}
+			// console.log(scope.sinks, scope.sources);
 		}));
 	});
 };
