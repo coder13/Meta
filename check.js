@@ -20,16 +20,19 @@ var flags = module.exports.flags = {
 	verbose: false,
 	recursive: false,
 	json: true,
-	debug: false
+	debug: false,
+	sinks: false
 };
 
 var reports = module.exports.reports = [];
+var sinks   = module.exports.sinks   = [];
 
 module.exports.setFlags = function(newFlags) {
 	Scope.flags.verbose = flags.verbose = newFlags.verbose;
 	Scope.flags.recursive = flags.recursive = newFlags.recursive;
 	Scope.flags.json = flags.json = newFlags.json;
 	Scope.flags.debug = flags.debug = newFlags.debug;
+	Scope.flags.sinks = flags.sinks = newFlags.sinks;
 
 	if (flags.json) {
 		// We don't do anything with these function when outputing json.
@@ -37,12 +40,13 @@ module.exports.setFlags = function(newFlags) {
 		Scope.Scope.leaveScope = function() {};
 
 		find = function(reps, name) {
+			if (!name || typeof name != 'string')
+				return false;
 			return _.find(reps, function(i) {
-				var rtrn = name.indexOf(i.source.name + '.') === 0 ||
-						name.indexOf(i.source.name + '(') === 0 ||
-						name.indexOf(i.source.name + '[') === 0 ||
-						name == i.source.name;
-				return rtrn;
+				return name.indexOf(i.source.name + '.') === 0 ||
+					   name.indexOf(i.source.name + '(') === 0 ||
+					   name.indexOf(i.source.name + '[') === 0 ||
+ 					   name == i.source.name;				
 			});
 		};
 
@@ -50,19 +54,19 @@ module.exports.setFlags = function(newFlags) {
 			Keeps adding possible taints untill the source lands into a sink.
 		*/
 		Scope.Scope.log = function(type, node, name, value) {
-			if (typeof value !== 'string')
-				return;
 			if (!type)
 				return;
 
 			var scope = this;
 
-			var file = this.file || this.scope.file;
 			var p = pos(node);
-			var p = path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), file) + ':' + p;
-			
+			var p = path.relative(Scope.Scope.baseFile.split('/').reverse().slice(1).reverse().join('/'), this.file) + ':' + p;
+
 			switch(type) {
 				case 'SOURCE':
+					if (typeof value !== 'string')
+						return;
+				
 					var source = find(scope.reports, value);
 					if (!source)
 						scope.reports.push({
@@ -93,6 +97,7 @@ module.exports.setFlags = function(newFlags) {
 					if (source) {
 						if (!source.chain)
 							source.chain = [];
+
 						source.chain.push({
 							type: 'assign',
 							name: name,
@@ -103,22 +108,30 @@ module.exports.setFlags = function(newFlags) {
 					break;
 				case 'SINK':
 					var source = find(scope.reports, value);
-					if (source)
+					if (source) {
 						source.sink = {
 							name: name,
 							line: p
 						};
 
-					// Flush the report. After finding the sink, we don't want to track it anymore.
-					if (scope.reports.indexOf(source) != -1) {
-						scope.reports.splice(this.reports.indexOf(source), 1);
-						
-						reports.push(source);
+						// Flush the report. After finding the sink, we don't want to track it anymore.
+						if (scope.reports.indexOf(source) != -1) {
+							scope.reports.splice(this.reports.indexOf(source), 1);
+
+							reports.push(source);
+						}
+					} else {
+						if (flags.sinks)
+							sinks.push({
+								name: name,
+								line: p
+							});
 					}
+
 					break;
 				default:
-					if (flags.debug)
-						console.log(type, p, name, value);
+					// if (flags.debug)
+					// 	console.log(type, p, name, value);
 			}
 			
 		};

@@ -28,9 +28,20 @@ if (!fs.existsSync(file)) {
 
 	process.exit(0);
 } else if (!fs.lstatSync(file).isFile()) {
-	console.error(file, 'is not a file.');
-	process.exit(0);
+	var pkgJson = require(file + '/package.json');
+	if (pkgJson.main) {
+		file += '/' + pkgJson.main;
+	}
+
+	if (!fs.existsSync(file)) {
+		console.error(file, 'doesn\'t exist.');
+		process.exit(0);
+	} else if (!fs.lstatSync(file).isFile()) {
+		console.error(file, 'is a directory.');
+		process.exit(0);
+	}
 }
+
 
 var argv = yargs.argv;
 
@@ -44,10 +55,12 @@ check.setFlags({
 	verbose: argv.v,
 	recursive: argv.r,
 	json: !argv.j && !argv.v,
-	debug: argv.d,
-	pretty: argv.p
+	debug: argv.d || true,
+	pretty: argv.p,
+	sinks: argv.s
 });
 var Scope = check.Scope;
+
 
 if (!argv.j)
 	console.log(' ---- '.yellow, file.white);
@@ -60,14 +73,24 @@ var ast = check.astFromFile(file);
 if (ast) {
 	check.traverse(ast, scope);
 
+	var output = {
+		reports: check.reports, 
+	};
+
 	if (check.flags.json) {
 		if (argv.p) {
 			if (check.reports.length !== 0)
-				console.log(require('prettyjson').render(check.reports));
+				console.log(require('prettyjson').render(output.reports));
 			else
 				console.log(colors.green('No vulneralbities found'));
+			if (check.sinks.length != 0)
+				console.log(require('prettyjson').render({Sinks: check.sinks}));
+
 		} else {
-			console.log(check.reports);	
+			console.log(output);	
 		}
 	}
+} else {
+	if (argv.p || !argv.j)
+		console.error('Invalid javascript!');
 }
